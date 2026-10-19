@@ -30,6 +30,8 @@ func main() {
 		os.Exit(runAnalyze(os.Args[2:]))
 	case "pr":
 		os.Exit(runPR(os.Args[2:]))
+	case "validate":
+		os.Exit(runValidate(os.Args[2:]))
 	case "version", "--version", "-v":
 		fmt.Println("csky", version)
 	default:
@@ -44,6 +46,7 @@ func usage() {
 usage:
   csky analyze <path | https://github.com/owner/repo> [flags]
   csky pr --base <ref> [--head HEAD] [--author login] [--repo .] [flags]
+  csky validate <path | url> [--months 12] [--top 20] [--md]
   csky version
 
 analyze flags:
@@ -70,17 +73,7 @@ func runAnalyze(args []string) int {
 	fs.BoolVar(&pretty, "pretty", false, "indent JSON")
 	fs.BoolVar(&keepClone, "keep-clone", false, "keep temporary clone")
 	fs.Usage = usage
-	// Go's flag package stops at the first positional; re-parse so flags
-	// may appear before or after the target.
-	var positional []string
-	for rest := args; ; {
-		_ = fs.Parse(rest)
-		if fs.NArg() == 0 {
-			break
-		}
-		positional = append(positional, fs.Arg(0))
-		rest = fs.Args()[1:]
-	}
+	positional := parseInterleaved(fs, args)
 	if len(positional) != 1 {
 		usage()
 		return 2
@@ -155,6 +148,22 @@ func runAnalyze(args []string) int {
 		fmt.Fprintf(os.Stderr, "warning: %d files where numstat history disagrees with HEAD line count\n", city.Stats.LineMismatches)
 	}
 	return 0
+}
+
+// parseInterleaved parses flags that may appear before or after positional
+// arguments (Go's flag package stops at the first positional) and returns
+// the positionals.
+func parseInterleaved(fs *flag.FlagSet, args []string) []string {
+	var positional []string
+	for rest := args; ; {
+		_ = fs.Parse(rest)
+		if fs.NArg() == 0 {
+			break
+		}
+		positional = append(positional, fs.Arg(0))
+		rest = fs.Args()[1:]
+	}
+	return positional
 }
 
 func fail(err error) int {

@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // Repo is an opened git repository (bare or not).
@@ -149,6 +150,20 @@ func (r *Repo) Diff(ctx context.Context, base, head string) ([]DiffEntry, error)
 		e.Deleted, _ = strconv.Atoi(parts[1])
 	}
 	return entries, nil
+}
+
+// CommitBefore returns the newest first-parent commit of rev authored at or
+// before t.
+func (r *Repo) CommitBefore(ctx context.Context, rev string, t time.Time) (string, error) {
+	out, err := git(ctx, r.Dir, "rev-list", "-1", "--first-parent", "--before="+t.UTC().Format(time.RFC3339), rev)
+	if err != nil {
+		return "", err
+	}
+	sha := strings.TrimSpace(out)
+	if sha == "" {
+		return "", fmt.Errorf("no commit before %s", t.Format(time.RFC3339))
+	}
+	return sha, nil
 }
 
 // MergeBase returns the best common ancestor of a and b.
