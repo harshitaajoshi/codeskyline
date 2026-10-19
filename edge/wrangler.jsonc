@@ -1,0 +1,71 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "codeskyline",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": { "enabled": true },
+
+  // The viewer. Static requests never touch the Worker (and are free);
+  // only these prefixes run Worker code first.
+  "assets": {
+    "directory": "../web/dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/badge/*", "/s/*", "/og/*"]
+  },
+
+  "vars": {
+    "MAX_REPO_KB": "2000000",
+    "MAX_COMMITS": "100000",
+    "MAX_JOBS_PER_MONTH": "300",
+    "PUBLIC_ORIGIN": "https://codeskyline.harshitaajoshi.workers.dev"
+  },
+
+  "durable_objects": {
+    "bindings": [
+      { "name": "JOB", "class_name": "JobDO" },
+      { "name": "ANALYZER", "class_name": "AnalyzerContainer" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["JobDO", "AnalyzerContainer"] }],
+
+  "containers": [
+    {
+      "class_name": "AnalyzerContainer",
+      "image": "../analyzer/Dockerfile",
+      "image_build_context": "../analyzer",
+      "max_instances": 2,
+      "instance_type": "standard-2"
+    }
+  ],
+
+  "queues": {
+    "producers": [{ "binding": "QUEUE", "queue": "codeskyline-analysis" }],
+    "consumers": [
+      {
+        "queue": "codeskyline-analysis",
+        "max_batch_size": 1,
+        "max_concurrency": 2,
+        "max_retries": 1,
+        "dead_letter_queue": "codeskyline-dlq"
+      }
+    ]
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "codeskyline",
+      // Replace with the id printed by `wrangler d1 create codeskyline`.
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+
+  "r2_buckets": [{ "binding": "CITIES", "bucket_name": "codeskyline-cities" }],
+
+  "ratelimits": [
+    { "name": "ANALYZE_RL", "namespace_id": "1001", "simple": { "limit": 6, "period": 60 } }
+  ]
+}

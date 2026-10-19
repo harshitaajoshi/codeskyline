@@ -1,0 +1,3 @@
+bin/
+*.city.json
+*.city.json.gz

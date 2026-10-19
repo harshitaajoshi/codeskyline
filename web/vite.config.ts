@@ -18,6 +18,14 @@ export default defineConfig({
       },
     },
   },
+  server: {
+    // `pnpm dev:edge` serves the API on 8787; the viewer dev server proxies to it.
+    proxy: {
+      '/api': { target: 'http://localhost:8787', ws: true },
+      '/badge': 'http://localhost:8787',
+      '/s': 'http://localhost:8787',
+    },
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts'],

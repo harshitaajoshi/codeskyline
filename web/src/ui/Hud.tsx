@@ -4,9 +4,10 @@ import { MODES, FIRE } from '../city/colors'
 import { formatDate, formatNum, githubFileUrl } from '../city/scales'
 import type { City } from '../city/types'
 import { SAMPLES, loadSample } from '../city/load'
+import { createShare } from '../city/api'
 import { Timeline } from './Timeline'
 
-export function Hud({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
+export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   // Space toggles playback unless the user is typing.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -20,7 +21,7 @@ export function Hud({ city, onOpenFile }: { city: City; onOpenFile: () => void }
   }, [])
   return (
     <>
-      <TopBar city={city} onOpenFile={onOpenFile} />
+      <TopBar city={city} onOpenFile={onOpenFile} onHome={onHome} />
       <Legend city={city} />
       <Inspector city={city} />
       <Search city={city} />
@@ -29,7 +30,7 @@ export function Hud({ city, onOpenFile }: { city: City; onOpenFile: () => void }
   )
 }
 
-function TopBar({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
+function TopBar({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const mode = useStore((s) => s.mode)
   const setMode = useStore((s) => s.setMode)
   const heightScale = useStore((s) => s.heightScale)
@@ -43,7 +44,9 @@ function TopBar({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
   return (
     <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start gap-3 p-3">
       <div className="panel pointer-events-auto flex items-center gap-3 px-3 py-2">
-        <span className="text-sm font-semibold tracking-tight">🏙️ CodeSkyline</span>
+        <button className="text-sm font-semibold tracking-tight hover:opacity-80" onClick={onHome} title="home">
+          🏙️ CodeSkyline
+        </button>
         <span className="text-muted text-xs">/</span>
         <select
           className="bg-transparent text-sm outline-none"
@@ -96,6 +99,8 @@ function TopBar({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
         </label>
       </div>
 
+      <ShareButton city={city} />
+
       <div className="panel pointer-events-auto ml-auto px-3 py-2 text-xs">
         <div className="font-medium">{city.repo.name}</div>
         <div className="text-muted">
@@ -105,6 +110,44 @@ function TopBar({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
         </div>
       </div>
     </div>
+  )
+}
+
+/** Copies a link that reproduces the current view; a short link when the API is around. */
+function ShareButton({ city }: { city: City }) {
+  const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
+  const share = async () => {
+    const s = useStore.getState()
+    const last = Math.max(1, city.timeline.keyframes.length - 1)
+    const q = new URLSearchParams(location.search)
+    q.set('mode', s.mode)
+    if (s.t < last - 1e-6) q.set('t', (s.t / last).toFixed(3))
+    else q.delete('t')
+    if (s.selected != null) q.set('f', String(s.selected))
+    else q.delete('f')
+    q.delete('play')
+    const target = `${location.pathname}?${q.toString()}`
+    let url = `${location.origin}${target}`
+    if (location.pathname.startsWith('/r/')) {
+      try {
+        url = await createShare(target)
+      } catch {
+        /* no API: fall back to the long URL */
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      history.replaceState(null, '', target)
+      setState('copied')
+    } catch {
+      setState('failed')
+    }
+    setTimeout(() => setState('idle'), 1800)
+  }
+  return (
+    <button onClick={() => void share()} className="panel pointer-events-auto px-3 py-2 text-xs text-muted hover:text-ink" title="copy a link to this view">
+      {state === 'copied' ? '✓ link copied' : state === 'failed' ? 'copy failed' : '🔗 share'}
+    </button>
   )
 }
 
