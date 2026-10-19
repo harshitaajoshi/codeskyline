@@ -3,6 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useStore } from '../store'
 import { height } from '../city/scales'
+import { fireAt, linesAt, type TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
 
 const FLAME = new THREE.ConeGeometry(0.5, 1, 6).translate(0, 0.5, 0)
@@ -17,39 +18,45 @@ interface Flame {
 }
 
 /**
- * Flames on hotspot rooftops. Emissive cones with values above 1.0 so the
- * bloom pass picks them up; per-frame flicker is a few scales, not geometry.
+ * Flames on hotspot rooftops at the current keyframe. Emissive cones with
+ * values above 1.0 so the bloom pass picks them up; per-frame flicker is a
+ * few scales, not geometry.
  */
-export function Fire({ city }: { city: City }) {
+export function Fire({ city, timeline }: { city: City; timeline: TimelineData }) {
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const heightScale = useStore((s) => s.heightScale)
   const hideGenerated = useStore((s) => s.hideGenerated)
+  const k = useStore((s) => s.k)
 
   const flames = useMemo<Flame[]>(() => {
     const out: Flame[] = []
-    for (const f of city.files) {
-      if (f.fire === 0 || (hideGenerated && (f.generated || f.vendored))) continue
-      const h = height(f.lines, heightScale, city.stats.maxLines)
-      const n = f.fire === 3 ? 5 : f.fire === 2 ? 3 : 1
+    city.files.forEach((f, fi) => {
+      if (hideGenerated && (f.generated || f.vendored)) return
+      const level = fireAt(timeline, fi, k)
+      if (level === 0) return
+      const h = height(linesAt(timeline, fi, k), heightScale, city.stats.maxLines)
+      const n = level === 3 ? 5 : level === 2 ? 3 : 1
       for (let i = 0; i < n; i++) {
         const u = (i + 0.5) / n
         out.push({
           x: f.x + f.w * (n === 1 ? 0.5 : 0.2 + 0.6 * u),
-          z: f.z + f.d * (0.35 + 0.3 * ((i * 7) % 3) / 2),
+          z: f.z + f.d * (0.35 + (0.3 * ((i * 7) % 3)) / 2),
           y: h,
-          size: Math.min(f.w, f.d) * (f.fire === 3 ? 0.55 : 0.4),
-          phase: Math.random() * Math.PI * 2,
-          level: f.fire,
+          size: Math.min(f.w, f.d) * (level === 3 ? 0.55 : 0.4),
+          phase: (fi * 0.618 + i) % (Math.PI * 2),
+          level,
         })
       }
-    }
+    })
     return out
-  }, [city, heightScale, hideGenerated])
+  }, [city, timeline, k, heightScale, hideGenerated])
 
   const material = useMemo(
     () => new THREE.MeshBasicMaterial({ color: new THREE.Color(2.5, 0.9, 0.2), toneMapped: false, transparent: true, opacity: 0.9 }),
     [],
   )
+
+  const capacity = useMemo(() => Math.max(1, city.files.length * 2), [city])
 
   useEffect(() => {
     const m = mesh.current
@@ -82,6 +89,5 @@ export function Fire({ city }: { city: City }) {
     m.instanceMatrix.needsUpdate = true
   })
 
-  if (flames.length === 0) return null
-  return <instancedMesh ref={mesh} args={[FLAME, material, flames.length]} frustumCulled={false} />
+  return <instancedMesh ref={mesh} args={[FLAME, material, capacity]} frustumCulled={false} />
 }

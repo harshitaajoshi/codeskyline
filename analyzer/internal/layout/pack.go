@@ -34,15 +34,16 @@ type Dir struct {
 	Leaves int
 }
 
-// Result maps every item path to its lot and lists the districts.
+// Result holds every item's lot (indexed like the input) and the districts.
 type Result struct {
 	Dirs  []Dir
-	Rects map[string]model.Rect
+	Rects []model.Rect
 }
 
 type node struct {
 	name     string
 	path     string
+	item     int // index into the input items, for leaves
 	children []*node
 	leaf     bool
 	w, d     float64    // own size, including nothing outside the lot/district
@@ -85,16 +86,16 @@ func FootprintArea(lines int) float64 {
 func Place(items []Item) Result {
 	root := &node{path: ""}
 	index := map[string]*node{"": root}
-	for _, it := range items {
+	for i, it := range items {
 		d := ensureDir(index, root, parentDir(it.Path))
 		side := math.Sqrt(math.Max(it.Area, 0.25))
-		d.children = append(d.children, &node{name: baseName(it.Path), path: it.Path, leaf: true, w: side, d: side})
+		d.children = append(d.children, &node{name: baseName(it.Path), path: it.Path, item: i, leaf: true, w: side, d: side})
 	}
 	size(root, 0)
 	root.abs = model.Rect{X: 0, Z: 0, W: root.w, D: root.d}
 	position(root, 0)
 
-	res := Result{Rects: make(map[string]model.Rect, len(items))}
+	res := Result{Rects: make([]model.Rect, len(items))}
 	collect(root, -1, 0, &res)
 	return res
 }
@@ -127,7 +128,10 @@ func size(n *node, depth int) {
 		if ma, mb := math.Max(a.w, a.d), math.Max(b.w, b.d); ma != mb {
 			return ma > mb
 		}
-		return a.name < b.name
+		if a.name != b.name {
+			return a.name < b.name
+		}
+		return a.item < b.item // deleted files may share a name with a live one
 	})
 	w, d := pack(n.children, gap)
 	// Children sit at gap offset; the district adds a street on every side.
@@ -217,7 +221,7 @@ func position(n *node, depth int) {
 
 func collect(n *node, parent, depth int, res *Result) {
 	if n.leaf {
-		res.Rects[n.path] = round(n.abs)
+		res.Rects[n.item] = round(n.abs)
 		return
 	}
 	id := len(res.Dirs)

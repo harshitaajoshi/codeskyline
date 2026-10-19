@@ -1,17 +1,25 @@
-import { Suspense, useEffect, useRef } from 'react'
-import { Canvas } from '@react-three/fiber'
+import { Suspense, useEffect, useMemo, useRef } from 'react'
+import { Canvas, useFrame } from '@react-three/fiber'
 import { CameraControls, Environment } from '@react-three/drei'
 import { Bloom, EffectComposer, Vignette } from '@react-three/postprocessing'
 import type CameraControlsImpl from 'camera-controls'
 import { useStore } from '../store'
 import { cityBounds, height } from '../city/scales'
+import { buildTimeline, linesAt } from '../city/timeline'
+import { ownerSlots } from '../city/colors'
 import type { City } from '../city/types'
 import { Buildings } from './Buildings'
 import { Districts } from './Districts'
 import { Fire } from './Fire'
+import { Lots } from './Lots'
 
 export function Scene({ city }: { city: City }) {
   const { cx, cz, size } = cityBounds(city)
+  const timeline = useMemo(() => {
+    const slots = ownerSlots(city)
+    return buildTimeline(city, (a) => slots.get(a) ?? 255)
+  }, [city])
+
   return (
     <Canvas
       shadows
@@ -45,9 +53,11 @@ export function Scene({ city }: { city: City }) {
       </mesh>
 
       <Districts city={city} />
-      <Buildings city={city} />
-      <Fire city={city} />
+      <Lots city={city} timeline={timeline} />
+      <Buildings city={city} timeline={timeline} />
+      <Fire city={city} timeline={timeline} />
 
+      <Playback />
       <Camera city={city} />
 
       <EffectComposer>
@@ -56,6 +66,23 @@ export function Scene({ city }: { city: City }) {
       </EffectComposer>
     </Canvas>
   )
+}
+
+/** Advances the timeline while playing. Lives in the render loop, not React state per frame. */
+function Playback() {
+  useFrame((_, dt) => {
+    const s = useStore.getState()
+    if (!s.playing || !s.city) return
+    const last = Math.max(0, s.city.timeline.keyframes.length - 1)
+    const next = s.t + dt * s.speed
+    if (next >= last) {
+      s.setT(last)
+      s.setPlaying(false)
+    } else {
+      s.setT(next)
+    }
+  })
+  return null
 }
 
 /** Orbit camera with smooth fly-to on selection. */
@@ -74,7 +101,10 @@ function Camera({ city }: { city: City }) {
     if (flyTo == null) return
     const f = city.files[flyTo]
     if (!f) return
-    const h = height(f.lines, heightScale, city.stats.maxLines)
+    const s = useStore.getState()
+    const slots = ownerSlots(city)
+    const tl = buildTimelineCached(city, slots)
+    const h = height(linesAt(tl, flyTo, s.k), heightScale, city.stats.maxLines)
     const tx = f.x + f.w / 2
     const tz = f.z + f.d / 2
     const dist = Math.max(8, h * 1.6, Math.max(f.w, f.d) * 4)
@@ -83,4 +113,14 @@ function Camera({ city }: { city: City }) {
   }, [flyTo, city, heightScale, consume])
 
   return <CameraControls ref={ref} makeDefault minDistance={2} maxDistance={size * 4} maxPolarAngle={Math.PI / 2 - 0.02} smoothTime={0.45} />
+}
+
+const tlCache = new WeakMap<City, ReturnType<typeof buildTimeline>>()
+function buildTimelineCached(city: City, slots: Map<number, number>) {
+  let t = tlCache.get(city)
+  if (!t) {
+    t = buildTimeline(city, (a) => slots.get(a) ?? 255)
+    tlCache.set(city, t)
+  }
+  return t
 }

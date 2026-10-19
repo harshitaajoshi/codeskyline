@@ -68,6 +68,22 @@ export interface File extends Rect {
   generated?: boolean
   vendored?: boolean
   binary?: boolean
+  removed?: boolean // exists only in history; keeps its lot
+  maxLines: number
+}
+
+export interface Keyframe {
+  index: number
+  time: number
+  hash: string
+  subject: string
+  author: number
+}
+
+/** Events: flat [file, k, lines, activity, owner, fire] tuples sorted by (file, k). */
+export interface Timeline {
+  keyframes: Keyframe[]
+  events: number[]
 }
 
 export interface Stats {
@@ -79,6 +95,7 @@ export interface Stats {
   maxCommits: number
   languages: Record<string, number>
   burning: number
+  removed: number
   lineMismatches?: number
 }
 
@@ -89,6 +106,7 @@ export interface City {
   dirs: Dir[]
   files: File[]
   stats: Stats
+  timeline: Timeline
 }
 
 export const CITY_VERSION = 1

@@ -8,12 +8,38 @@ const Version = 1
 
 // City is the root document produced by one analysis run.
 type City struct {
-	Version int      `json:"version"`
-	Repo    Repo     `json:"repo"`
-	Authors []Author `json:"authors"`
-	Dirs    []Dir    `json:"dirs"`
-	Files   []File   `json:"files"`
-	Stats   Stats    `json:"stats"`
+	Version  int      `json:"version"`
+	Repo     Repo     `json:"repo"`
+	Authors  []Author `json:"authors"`
+	Dirs     []Dir    `json:"dirs"`
+	Files    []File   `json:"files"`
+	Stats    Stats    `json:"stats"`
+	Timeline Timeline `json:"timeline"`
+}
+
+// Timeline is the time-travel data: the city sampled at K keyframe commits.
+//
+// Events is a flat list of 6-tuples [file, k, lines, activity, owner, fire],
+// sorted by file then k, recording a file's state at keyframe k whenever it
+// differs from its state at k-1. Between events a file's state is constant.
+// Files not mentioned before their first event do not exist yet.
+//
+//   - lines:    line count at the keyframe (0 once deleted)
+//   - activity: commits touching the file since the previous keyframe, capped at 255
+//   - owner:    index into City.Authors, or -1
+//   - fire:     hotspot level 0..3 ranked among files alive at the keyframe
+type Timeline struct {
+	Keyframes []Keyframe `json:"keyframes"`
+	Events    []int32    `json:"events"`
+}
+
+// Keyframe is one sampled commit.
+type Keyframe struct {
+	Index   int    `json:"index"` // position in the first-parent walk, 0-based
+	Time    int64  `json:"time"`
+	Hash    string `json:"hash"`
+	Subject string `json:"subject"`
+	Author  int    `json:"author"`
 }
 
 // Repo describes the analyzed repository and the extent of history covered.
@@ -99,6 +125,10 @@ type File struct {
 	Generated bool `json:"generated,omitempty"`
 	Vendored  bool `json:"vendored,omitempty"`
 	Binary    bool `json:"binary,omitempty"`
+	// Removed files no longer exist at HEAD but keep their lot so the city
+	// does not reshuffle during time travel. Lines is 0 for them.
+	Removed  bool `json:"removed,omitempty"`
+	MaxLines int  `json:"maxLines"` // largest line count the file ever had
 }
 
 // Stats are repo-wide aggregates used for legends and scales.
@@ -111,6 +141,7 @@ type Stats struct {
 	MaxCommits int            `json:"maxCommits"`
 	Languages  map[string]int `json:"languages"` // language -> lines
 	Burning    int            `json:"burning"`   // files with Fire > 0
+	Removed    int            `json:"removed"`   // files that exist only in history
 	// LineMismatches counts files whose running numstat total disagreed with
 	// the real line count at HEAD. Non-zero on full histories indicates a
 	// parser bug, so it is surfaced rather than hidden.

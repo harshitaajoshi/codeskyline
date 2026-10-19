@@ -6,7 +6,7 @@ import type { City, File } from './types'
 const file = (over: Partial<File>): File => ({
   id: 0, path: 'a', dir: 0, lang: 'Go', size: 0, lines: 10, code: 10, comment: 0, blank: 0, complexity: 1,
   commits: 1, recentCommits: 0, added: 0, deleted: 0, created: 1, lastTouched: 1, bugFixes: 0, hotspot: 0,
-  fire: 0, owners: [], x: 0, z: 0, w: 1, d: 1, ...over,
+  fire: 0, owners: [], x: 0, z: 0, w: 1, d: 1, maxLines: 10, ...over,
 })
 
 describe('colors', () => {

@@ -4,14 +4,27 @@ import { MODES, FIRE } from '../city/colors'
 import { formatDate, formatNum, githubFileUrl } from '../city/scales'
 import type { City } from '../city/types'
 import { SAMPLES, loadSample } from '../city/load'
+import { Timeline } from './Timeline'
 
 export function Hud({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
+  // Space toggles playback unless the user is typing.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'INPUT') return
+      e.preventDefault()
+      const s = useStore.getState()
+      s.setPlaying(!s.playing)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
   return (
     <>
       <TopBar city={city} onOpenFile={onOpenFile} />
       <Legend city={city} />
       <Inspector city={city} />
       <Search city={city} />
+      <Timeline city={city} />
     </>
   )
 }
@@ -88,6 +101,7 @@ function TopBar({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
         <div className="text-muted">
           {formatNum(city.stats.files)} files · {formatNum(city.stats.lines)} lines · {formatNum(city.repo.commits)} commits · {city.authors.length} authors
           {city.stats.burning > 0 && <span className="text-fire"> · 🔥 {city.stats.burning}</span>}
+          {city.stats.removed > 0 && <span title="files that only exist in history"> · {formatNum(city.stats.removed)} demolished</span>}
         </div>
       </div>
     </div>
@@ -99,8 +113,9 @@ function Legend({ city }: { city: City }) {
   const top = useMemo(() => [...city.authors].map((a, i) => ({ ...a, i })).sort((a, b) => b.commits - a.commits).slice(0, 8), [city])
   const langs = useMemo(() => Object.entries(city.stats.languages).sort((a, b) => b[1] - a[1]).slice(0, 8), [city])
   return (
-    <div className="panel pointer-events-auto absolute bottom-3 left-3 max-w-xs px-3 py-2 text-xs">
+    <div className="panel pointer-events-auto absolute bottom-20 left-3 max-w-xs px-3 py-2 text-xs">
       {mode === 'churn' && <Bar label="commits" from="few" to="many" css="linear-gradient(90deg,#2f4a7a,#2d8fa8,#8fd36b,#f5d442,#f28b2b,#e8382b)" />}
+      {mode === 'activity' && <Bar label="activity" from="quiet" to="busy" css="linear-gradient(90deg,#1f2a44,#2b4c7e,#3f8fd2,#8fe3ff,#ffffff)" />}
       {mode === 'age' && <Bar label="created" from="new" to="old" css="linear-gradient(90deg,#f8f1a6,#8ad5c9,#4a7aa8,#2b3659)" />}
       {mode === 'hotspots' && (
         <div className="flex items-center gap-3">
@@ -155,11 +170,15 @@ function Inspector({ city }: { city: City }) {
   if (!f) return null
   const url = githubFileUrl(city, f)
   return (
-    <div className="panel pointer-events-auto absolute right-3 bottom-3 w-80 p-3 text-xs">
+    <div className="panel pointer-events-auto absolute right-3 bottom-20 w-80 p-3 text-xs">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-mono text-[13px] break-all">{f.path}</div>
-          <div className="text-muted">{f.lang}{f.generated ? ' · generated' : ''}{f.vendored ? ' · vendored' : ''}</div>
+          <div className="text-muted">
+            {f.removed ? `removed · peaked at ${formatNum(f.maxLines)} lines` : f.lang}
+            {f.generated ? ' · generated' : ''}
+            {f.vendored ? ' · vendored' : ''}
+          </div>
         </div>
         {selected != null && (
           <button className="text-muted hover:text-ink" onClick={() => select(null)} aria-label="close">✕</button>

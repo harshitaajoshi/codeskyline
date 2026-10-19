@@ -53,8 +53,8 @@ func TestPlaceIsNestedNonOverlappingAndDeterministic(t *testing.T) {
 		}
 	}
 	// Lots are exact squares of the requested area, nested in their directory.
-	for _, it := range items {
-		r := res.Rects[it.Path]
+	for i, it := range items {
+		r := res.Rects[i]
 		if side := math.Sqrt(it.Area); math.Abs(r.W-side) > eps || math.Abs(r.D-side) > eps {
 			t.Errorf("%s lot %+v, want %.2f square", it.Path, r, side)
 		}
@@ -90,7 +90,15 @@ func TestPlaceIsNestedNonOverlappingAndDeterministic(t *testing.T) {
 		j := (i * 7919) % len(shuffled)
 		shuffled[i], shuffled[j] = shuffled[j], shuffled[i]
 	}
-	if again := Place(shuffled); !reflect.DeepEqual(again, res) {
+	again := Place(shuffled)
+	byItem := func(items []Item, r Result) map[string]model.Rect {
+		m := map[string]model.Rect{}
+		for i, it := range items {
+			m[it.Path] = r.Rects[i]
+		}
+		return m
+	}
+	if !reflect.DeepEqual(byItem(shuffled, again), byItem(items, res)) || !reflect.DeepEqual(again.Dirs, res.Dirs) {
 		t.Error("layout is not deterministic under input reordering")
 	}
 }

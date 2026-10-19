@@ -15,9 +15,13 @@ export function App() {
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const id = new URLSearchParams(location.search).get('sample') ?? SAMPLES[0]!.id
+    const params = new URLSearchParams(location.search)
+    const id = params.get('sample') ?? SAMPLES[0]!.id
     setLoading()
-    loadSample(id).then(setCity, (e) => setError(String(e)))
+    loadSample(id).then((c) => {
+      setCity(c)
+      applyUrlState(params, c.timeline.keyframes.length)
+    }, (e) => setError(String(e)))
   }, [setCity, setLoading, setError])
 
   const openFiles = useCallback(
@@ -61,6 +65,16 @@ export function App() {
       )}
     </div>
   )
+}
+
+/** ?t=0..1 (fraction of history), ?mode=churn|activity|hotspots|owners|language|age, ?play=1 */
+function applyUrlState(params: URLSearchParams, keyframes: number) {
+  const s = useStore.getState()
+  const t = params.get('t')
+  if (t != null && !Number.isNaN(Number(t))) s.setT(Math.min(1, Math.max(0, Number(t))) * Math.max(0, keyframes - 1))
+  const mode = params.get('mode')
+  if (mode && ['churn', 'activity', 'hotspots', 'owners', 'language', 'age'].includes(mode)) s.setMode(mode as never)
+  if (params.get('play') === '1') s.setPlaying(true)
 }
 
 function Center({ children }: { children: React.ReactNode }) {

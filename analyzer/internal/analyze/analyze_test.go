@@ -43,6 +43,7 @@ func TestRunBuildsConsistentCity(t *testing.T) {
 		testutil.Write("src/core/engine.go", goWithBranches),
 		testutil.Write("src/util/strings.go", "package util\n"),
 		testutil.Write("README.md", testutil.Lines("line ", 20)),
+		testutil.Write("tmp/scratch.txt", testutil.Lines("s", 40)),
 		testutil.Write("package-lock.json", testutil.Lines("{}", 500)))
 	// Hot file: many recent commits by Bob, several flagged as fixes.
 	for i := 1; i <= 6; i++ {
@@ -55,7 +56,8 @@ func TestRunBuildsConsistentCity(t *testing.T) {
 	}
 	// Rename keeps identity: commits before and after should be summed.
 	r.Commit("Ada", ada, testutil.Day(10), "move util",
-		testutil.Move("src/util/strings.go", "src/text/strings.go"))
+		testutil.Move("src/util/strings.go", "src/text/strings.go"),
+		testutil.Remove("tmp/scratch.txt"))
 	r.Commit("Ada", ada, testutil.Day(11), "edit moved file",
 		testutil.Write("src/text/strings.go", "package text\nvar s = \"x\"\n"))
 
@@ -106,6 +108,15 @@ func TestRunBuildsConsistentCity(t *testing.T) {
 		t.Errorf("readme: %+v", readme)
 	}
 
+	// Deleted files keep a lot (layout stability) but contribute no lines.
+	gone := file(t, city, "tmp/scratch.txt")
+	if !gone.Removed || gone.Lines != 0 || gone.MaxLines != 40 || gone.W <= 0 || gone.Commits != 2 {
+		t.Errorf("deleted file: %+v", gone)
+	}
+	if city.Stats.Files != 4 || city.Stats.Removed != 1 {
+		t.Errorf("stats: %+v", city.Stats)
+	}
+
 	// Every file sits in a directory that exists and is nested under root.
 	for _, f := range city.Files {
 		if f.Dir < 0 || f.Dir >= len(city.Dirs) || f.W <= 0 || f.D <= 0 {
@@ -114,6 +125,49 @@ func TestRunBuildsConsistentCity(t *testing.T) {
 	}
 	if root := city.Dirs[0]; root.Files != len(city.Files) || root.Lines != city.Stats.Lines {
 		t.Errorf("root aggregates: %+v vs stats %+v", root, city.Stats)
+	}
+
+	// Timeline: one keyframe per commit for a short history.
+	tl := city.Timeline
+	if len(tl.Keyframes) != 9 || tl.Keyframes[0].Subject != "init" || tl.Keyframes[8].Index != 8 {
+		t.Fatalf("keyframes: %+v", tl.Keyframes)
+	}
+	if len(tl.Events)%6 != 0 {
+		t.Fatalf("events not 6-tuples: %d", len(tl.Events))
+	}
+	at := func(fileID int, k int) (lines, act, owner, fire int32, ok bool) {
+		// state at keyframe k = last event with k' <= k
+		for i := 0; i < len(tl.Events); i += 6 {
+			e := tl.Events[i : i+6]
+			if int(e[0]) == fileID && int(e[1]) <= k {
+				lines, act, owner, fire, ok = e[2], e[3], e[4], e[5], true
+			}
+		}
+		return
+	}
+	if l, _, _, _, ok := at(eng.ID, 0); !ok || l != 13 {
+		t.Errorf("engine at k0: lines=%d ok=%v", l, ok)
+	}
+	if l, act, owner, fire, _ := at(eng.ID, 8); l != int32(eng.Lines) || act != 0 || city.Authors[owner].Email != bob || fire != int32(eng.Fire) {
+		t.Errorf("engine at last keyframe: lines=%d act=%d owner=%d fire=%d", l, act, owner, fire)
+	}
+	if _, act, _, _, _ := at(eng.ID, 3); act != 1 {
+		t.Errorf("engine activity at k3 = %d, want 1 commit since previous keyframe", act)
+	}
+	if l, _, _, _, _ := at(gone.ID, 6); l != 40 {
+		t.Errorf("scratch alive at k6: %d", l)
+	}
+	if l, _, _, _, _ := at(gone.ID, 7); l != 0 {
+		t.Errorf("scratch deleted at k7: %d", l)
+	}
+	if _, _, _, _, ok := at(moved.ID, 0); !ok {
+		t.Error("renamed file should exist from the first keyframe")
+	}
+	for i := 6; i < len(tl.Events); i += 6 {
+		a, b := tl.Events[i-6:i], tl.Events[i:i+6]
+		if a[0] > b[0] || (a[0] == b[0] && a[1] >= b[1]) {
+			t.Fatalf("events not sorted by (file, k): %v then %v", a, b)
+		}
 	}
 }
 
@@ -130,6 +184,19 @@ func TestRunTruncatedHistoryStillCounts(t *testing.T) {
 	}
 	if a := file(t, city, "a.go"); a.Lines != 1 || a.Commits != 0 {
 		t.Errorf("a.go outside window: %+v", a)
+	}
+	// Even without history, the last keyframe must reflect HEAD.
+	tl := city.Timeline
+	if len(tl.Keyframes) != 1 {
+		t.Fatalf("keyframes: %+v", tl.Keyframes)
+	}
+	seen := map[int32]int32{}
+	for i := 0; i < len(tl.Events); i += 6 {
+		seen[tl.Events[i]] = tl.Events[i+2]
+	}
+	a, b := file(t, city, "a.go"), file(t, city, "b.go")
+	if seen[int32(a.ID)] != 1 || seen[int32(b.ID)] != 2 {
+		t.Errorf("last keyframe lines: %v", seen)
 	}
 }
 

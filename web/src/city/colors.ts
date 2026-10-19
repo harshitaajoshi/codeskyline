@@ -1,15 +1,21 @@
 import type { City, File } from './types'
 import { percentileRanks } from './scales'
 
-export type ColorMode = 'churn' | 'hotspots' | 'owners' | 'language' | 'age'
+export type ColorMode = 'churn' | 'activity' | 'hotspots' | 'owners' | 'language' | 'age'
 
 export const MODES: { id: ColorMode; label: string; hint: string }[] = [
-  { id: 'churn', label: 'Churn', hint: 'How often a file changes' },
+  { id: 'churn', label: 'Churn', hint: 'Commits so far (cumulative)' },
+  { id: 'activity', label: 'Activity', hint: 'What is being worked on right now' },
   { id: 'hotspots', label: 'Hotspots', hint: 'Churn × complexity × bug fixes' },
   { id: 'owners', label: 'Owners', hint: 'Who maintains each file' },
   { id: 'language', label: 'Language', hint: 'Language per file' },
   { id: 'age', label: 'Age', hint: 'When a file was created' },
 ]
+
+/** Modes whose colors come from the timeline textures on the GPU. */
+export const GPU_MODE: Record<ColorMode, number> = { churn: 1, activity: 2, hotspots: 3, owners: 4, language: 0, age: 0 }
+
+export const OWNER_SLOTS = 16
 
 export type RGB = [number, number, number]
 
@@ -32,9 +38,11 @@ export function gradient(stops: RGB[], t: number): RGB {
 export const GRAY: RGB = hex('#3a4256')
 export const DIM: RGB = hex('#262c3b')
 
-const CHURN: RGB[] = ['#2f4a7a', '#2d8fa8', '#8fd36b', '#f5d442', '#f28b2b', '#e8382b'].map(hex)
+export const CHURN: RGB[] = ['#2f4a7a', '#2d8fa8', '#8fd36b', '#f5d442', '#f28b2b', '#e8382b'].map(hex)
+export const ACTIVITY: RGB[] = ['#1f2a44', '#2b4c7e', '#3f8fd2', '#8fe3ff', '#ffffff'].map(hex)
 const AGE: RGB[] = ['#f8f1a6', '#8ad5c9', '#4a7aa8', '#2b3659'].map(hex) // new → old
 export const FIRE: RGB[] = [GRAY, hex('#f5a623'), hex('#ff6a3d'), hex('#ff2d2d')]
+export const RUIN: RGB = hex('#171c2a')
 
 // Linguist-ish colors for common languages; everything else hashes to a palette.
 const LANG: Record<string, string> = {
@@ -60,11 +68,22 @@ export function languageColor(lang: string): RGB {
 }
 
 /** Top authors get stable palette slots; the long tail shares gray. */
-export function ownerPalette(city: City, top = 12): Map<number, RGB> {
-  const order = city.authors.map((a, i) => ({ i, commits: a.commits })).sort((a, b) => b.commits - a.commits)
+export function ownerPalette(city: City, top = OWNER_SLOTS): Map<number, RGB> {
   const m = new Map<number, RGB>()
-  order.slice(0, top).forEach((a, k) => m.set(a.i, PALETTE[k % PALETTE.length]!))
+  ownerSlots(city, top).forEach((slot, author) => m.set(author, PALETTE[slot % PALETTE.length]!))
   return m
+}
+
+/** author index → palette slot for the top authors by commits. */
+export function ownerSlots(city: City, top = OWNER_SLOTS): Map<number, number> {
+  const order = city.authors.map((a, i) => ({ i, commits: a.commits })).sort((a, b) => b.commits - a.commits || a.i - b.i)
+  const m = new Map<number, number>()
+  order.slice(0, top).forEach((a, k) => m.set(a.i, k))
+  return m
+}
+
+export function paletteSlot(slot: number): RGB {
+  return PALETTE[slot % PALETTE.length]!
 }
 
 export interface ColorContext {
@@ -84,10 +103,13 @@ export function makeColorContext(city: City, mode: ColorMode): ColorContext {
 }
 
 export function fileColor(f: File, i: number, ctx: ColorContext): RGB {
+  if (f.removed) return RUIN
   if (f.generated || f.vendored || f.binary) return DIM
   switch (ctx.mode) {
     case 'churn':
       return gradient(CHURN, ctx.churnRank[i] ?? 0)
+    case 'activity':
+      return gradient(ACTIVITY, Math.min(1, f.recentCommits / 10))
     case 'hotspots':
       return f.fire > 0 ? FIRE[f.fire]! : lerp(DIM, hex('#6b4a2a'), f.hotspot)
     case 'owners': {

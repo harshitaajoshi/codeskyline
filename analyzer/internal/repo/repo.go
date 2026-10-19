@@ -67,6 +67,15 @@ func (r *Repo) Head(ctx context.Context) (string, error) {
 	return strings.TrimSpace(out), err
 }
 
+// CountCommits returns the number of first-parent commits reachable from rev.
+func (r *Repo) CountCommits(ctx context.Context, rev string) (int, error) {
+	out, err := git(ctx, r.Dir, "rev-list", "--count", "--first-parent", rev)
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(out))
+}
+
 // DefaultBranch returns the short name HEAD points at, or "" when detached.
 func (r *Repo) DefaultBranch(ctx context.Context) string {
 	out, err := git(ctx, r.Dir, "symbolic-ref", "--short", "-q", "HEAD")
