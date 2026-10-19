@@ -23,3 +23,6 @@ coverage/
 *.city.json
 *.city.json.gz
 *.csky
+
+# bundled viewer samples are tracked
+!web/public/samples/*.city.json

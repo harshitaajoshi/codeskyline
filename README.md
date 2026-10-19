@@ -7,7 +7,10 @@ districts, files are buildings, height is lines of code, color is how often a fi
 changes, and buildings that *catch fire* are the bug-prone hotspots hiding in your
 commit history. Scrub a timeline to watch the city grow over years of commits.
 
-> Status: early development. The analyzer CLI works; the 3D viewer is next.
+![expressjs/express rendered as a city, colored by churn, with hotspot buildings on fire](docs/images/express-churn.png)
+
+> Status: early development. The analyzer CLI and the 3D viewer work locally;
+> time travel, ownership views, the hosted service and the GitHub Action are in progress.
 
 ## What makes it different
 
@@ -48,10 +51,24 @@ The analyzer never checks out a working tree — it reads history with `git log`
 and file contents with `git cat-file`, so untrusted repositories cannot run code
 or plant symlinks on the machine doing the analysis.
 
+## Viewer quick start
+
+```sh
+pnpm install
+pnpm dev:web        # http://localhost:5173 — loads the bundled express sample
+```
+
+Drop any `*.city.json` produced by `csky` onto the page to render it. Modes:
+**Churn · Hotspots · Owners · Language · Age**. Click a building to inspect it
+and fly to it; <kbd>⌘K</kbd> jumps to a file by name.
+
 ## Development
 
 ```sh
-cd analyzer && go test ./...
+cd analyzer && go test ./...          # analyzer
+pnpm --filter web test                # viewer unit tests
+pnpm --filter web typecheck
+node web/scripts/shot.mjs http://localhost:5173 shot.png   # headless screenshot + console
 ```
 
 ## License
