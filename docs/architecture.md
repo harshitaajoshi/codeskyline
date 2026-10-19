@@ -76,9 +76,12 @@ shrink in place and nothing reshuffles while scrubbing.
 ## Hotspots
 
 ```
-score = pct(recent churn) × pct(complexity) × (1 + bug-fix ratio)
+score = pct(recent churn) × pct(complexity)
 ```
 
+Tornhill's definition. A bug-fix-ratio multiplier was tried and measured
+(see `benchmarks.md`): it lowered precision@20 from 70 % to 60 % across 12
+repositories, so bug-fix counts are shown but do not rank.
 Percentile ranks make the product comparable across repos of any size.
 Fire levels are assigned by rank (top 2 % inferno, next 5 % flames, next 8 %
 smoke) so every city has a few burning buildings. Lockfiles, vendored and
@@ -91,7 +94,56 @@ Knowledge-map style: each author's authored lines, decayed with a one-year
 half-life, after `.mailmap`. GitHub logins are derived from noreply addresses
 so avatars need no API calls for most authors.
 
+## Time travel
+
+The analyzer samples up to 256 **keyframes** along the first-parent walk and
+emits a sparse event list: `[file, k, lines, activity, owner, fire]` only when
+a file's state changes. Express (3.9k commits) needs ~9k events; React (15k
+commits, 12k files) ~115k — a few hundred KB gzipped.
+
+The viewer unpacks events into two textures indexed by `file × K` (line
+counts as float, and activity/owner-slot/fire/cumulative-churn as RGBA bytes)
+and renders every building with one `InstancedMesh`. A custom vertex shader
+injected into `MeshStandardMaterial` samples both neighbouring keyframes and
+interpolates height and color, so scrubbing the timeline updates a single
+uniform regardless of city size. The instance matrix still carries the current
+keyframe's height so raycasting hits the visible box; the shader divides it
+back out.
+
+Because the layout covers the union of every file that ever existed (sized by
+each file's historical maximum), buildings rise, grow and get demolished in
+place and nothing reshuffles. Demolished lots stay as dark foundations.
+
+Timeline hotspots are ranked per keyframe from a decayed commit rate (size
+stands in for complexity, which is not known historically); the final keyframe
+is forced to agree with the complexity-aware HEAD scores.
+
+## Ownership
+
+Knowledge-map style: each author's authored lines, decayed with a one-year
+half-life, after `.mailmap`. A file is **ghost town** when none of its owners
+with ≥10 % share has committed in a year and the file itself is untouched for
+a year. Each district carries a **bus factor** (Avelino et al.'s truck
+factor): greedily remove the author who knows the most files until more than
+half are orphaned.
+
+## PR mode
+
+`csky pr` analyzes the repository at the PR's merge base, diffs base→head and
+reports touched hotspots, bus-factor-1 districts, ownership crossings (with
+suggested reviewers) and ghost files, as markdown + JSON. The GitHub Action in
+`action/` downloads a release binary, runs it, and keeps one sticky comment
+per PR. It never uploads anything; fork PRs get the job summary.
+
+## Hosted service
+
+See `edge/README.md`. One Worker serves the viewer, the API, badges and short
+links; a per-commit Job Durable Object dedupes requests and fans progress out
+over WebSockets; a Queue drives a scale-to-zero Container running
+`csky-worker`; results land in R2 (gzipped, immutable) with summaries in D1.
+Guardrails: monthly job budget, repo size cap, per-IP rate limit.
+
 ## Document format
 
-v1 is JSON (`*.city.json`). A compact binary form with time-travel keyframes
-(`.csky`) arrives with the timeline feature; see `format/`.
+v1 is JSON (`*.city.json`, gzipped at rest). A compact binary form is the
+natural next step once sizes warrant it; the event list is already columnar.

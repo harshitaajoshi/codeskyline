@@ -75,7 +75,10 @@ runs:
         set -euo pipefail
         url=""
         if [ -n "$CITY" ]; then url="${CITY%/}/r/${GITHUB_REPOSITORY}"; fi
-        csky pr --repo . --base "$BASE_SHA" --head "$HEAD_SHA" --author "$AUTHOR" \
+        # The author's login plus the emails on the PR's own commits, so
+        # ownership crossings are not reported against the author's own work.
+        emails=$(git log --format='%ae' "$BASE_SHA".."$HEAD_SHA" 2>/dev/null | sort -u | paste -sd, - || true)
+        csky pr --repo . --base "$BASE_SHA" --head "$HEAD_SHA" --author "${AUTHOR},${emails}" \
           --name "$GITHUB_REPOSITORY" --city-url "$url" \
           --md "$RUNNER_TEMP/codeskyline.md" --json "$RUNNER_TEMP/codeskyline.json" \
           --summary "$GITHUB_STEP_SUMMARY"

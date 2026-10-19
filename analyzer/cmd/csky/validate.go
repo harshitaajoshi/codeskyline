@@ -156,38 +156,65 @@ func runValidate(args []string) int {
 	// would pad the top-K alphabetically. Same formula, continuous.
 	churnPct := percentileOf(eligible, func(f *model.File) float64 { return float64(f.RecentCommits) })
 	cplxPct := percentileOf(eligible, func(f *model.File) float64 { return float64(f.Complexity) })
-	hot := map[*model.File]float64{}
-	for i, f := range eligible {
-		bug := 0.0
-		if f.Commits > 0 {
-			bug = float64(f.BugFixes) / float64(f.Commits)
+	bugRatio := func(f *model.File) float64 {
+		if f.Commits == 0 {
+			return 0
 		}
-		hot[f] = churnPct[i] * cplxPct[i] * (1 + bug)
+		return float64(f.BugFixes) / float64(f.Commits)
 	}
-	pHot, hHot := precision(func(f *model.File) float64 { return hot[f] })
-	pChurn, hChurn := precision(func(f *model.File) float64 { return float64(f.RecentCommits) })
-	pSize, hSize := precision(func(f *model.File) float64 { return float64(f.Lines) })
-	pCplx, hCplx := precision(func(f *model.File) float64 { return float64(f.Complexity) })
+	// Candidate formulas, all percentile-based so they are comparable. The
+	// first is what the product ships (see docs/benchmarks.md for why).
+	variants := []struct {
+		name  string
+		score func(i int, f *model.File) float64
+	}{
+		{"hotspot (churn×cplx)", func(i int, _ *model.File) float64 { return churnPct[i] * cplxPct[i] }},
+		{"churn×cplx×(1+bugs)", func(i int, f *model.File) float64 { return churnPct[i] * cplxPct[i] * (1 + bugRatio(f)) }},
+		{"churn²×cplx×(1+bugs)", func(i int, f *model.File) float64 {
+			return churnPct[i] * churnPct[i] * cplxPct[i] * (1 + bugRatio(f))
+		}},
+		{"recent commits only", func(i int, f *model.File) float64 { return churnPct[i] }},
+		{"size only", func(_ int, f *model.File) float64 { return float64(f.Lines) }},
+		{"complexity only", func(i int, _ *model.File) float64 { return cplxPct[i] }},
+	}
+	type res struct {
+		p   float64
+		hit int
+	}
+	results := make([]res, len(variants))
+	for vi, v := range variants {
+		byFile := map[*model.File]float64{}
+		for i, f := range eligible {
+			byFile[f] = v.score(i, f)
+		}
+		p, h := precision(func(f *model.File) float64 { return byFile[f] })
+		results[vi] = res{p, h}
+	}
 	lift := 0.0
 	if baseRate > 0 {
-		lift = pHot / baseRate
+		lift = results[0].p / baseRate
 	}
 
 	if md {
-		fmt.Printf("| %s | %s | %d | %d | %.0f%% | **%.0f%%** (%d/%d) | %.0f%% | %.0f%% | %.0f%% | %.1f× |\n",
-			name, cutoff.Format("2006-01"), city.Repo.Commits, len(eligible), baseRate*100,
-			pHot*100, hHot, top, pChurn*100, pSize*100, pCplx*100, lift)
+		fmt.Printf("| %s | %s | %d | %d | %.0f%% |", name, cutoff.Format("2006-01"), city.Repo.Commits, len(eligible), baseRate*100)
+		for vi, r := range results {
+			if vi == 0 {
+				fmt.Printf(" **%.0f%%** |", r.p*100)
+			} else {
+				fmt.Printf(" %.0f%% |", r.p*100)
+			}
+		}
+		fmt.Printf(" %.1f× |\n", lift)
 		return 0
 	}
 	fmt.Printf("%s — ranked at %s (%s), %d commits of history, %d eligible files\n", name, then[:10], cutoff.Format("2006-01-02"), city.Repo.Commits, len(eligible))
 	fmt.Printf("files with a bug-fix commit in the following %d months: %d (%.1f%% base rate)\n\n", months, base, baseRate*100)
 	fmt.Printf("%-28s %8s\n", "ranking", fmt.Sprintf("P@%d", top))
 	fmt.Println(strings.Repeat("-", 38))
-	fmt.Printf("%-28s %7.0f%%  (%d/%d)   lift %.1f×\n", "hotspot (churn×cplx×bugs)", pHot*100, hHot, top, lift)
-	fmt.Printf("%-28s %7.0f%%  (%d/%d)\n", "recent commits only", pChurn*100, hChurn, top)
-	fmt.Printf("%-28s %7.0f%%  (%d/%d)\n", "size only", pSize*100, hSize, top)
-	fmt.Printf("%-28s %7.0f%%  (%d/%d)\n", "complexity only", pCplx*100, hCplx, top)
-	fmt.Printf("%-28s %7.0f%%\n", "random (base rate)", baseRate*100)
+	for vi, v := range variants {
+		fmt.Printf("%-28s %7.0f%%  (%d/%d)\n", v.name, results[vi].p*100, results[vi].hit, top)
+	}
+	fmt.Printf("%-28s %7.0f%%   (hotspot lift %.1f×)\n", "random (base rate)", baseRate*100, lift)
 	return 0
 }
 
