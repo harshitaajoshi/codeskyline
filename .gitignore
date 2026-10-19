@@ -1,0 +1,25 @@
+# deps / builds
+node_modules/
+dist/
+build/
+.wrangler/
+*.tsbuildinfo
+analyzer/bin/
+coverage/
+*.out
+
+# env / secrets
+.env
+.env.*
+!.env.example
+.dev.vars
+
+# os / editor
+.DS_Store
+.vscode/
+.idea/
+
+# analysis outputs
+*.city.json
+*.city.json.gz
+*.csky

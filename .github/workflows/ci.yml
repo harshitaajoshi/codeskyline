@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  analyzer:
+    name: analyzer (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: analyzer
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: analyzer/go.mod
+          cache-dependency-path: analyzer/go.sum
+      - run: gofmt -l . && test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race ./...
+      - run: go build -o bin/csky ./cmd/csky
+
+  web:
+    name: web (TypeScript)
+    runs-on: ubuntu-latest
+    if: ${{ hashFiles('web/package.json') != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter web typecheck
+      - run: pnpm --filter web test
+      - run: pnpm --filter web build
