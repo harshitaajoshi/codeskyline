@@ -180,6 +180,10 @@ function Legend({ city }: { city: City }) {
       )}
       {mode === 'owners' && (
         <div className="grid grid-cols-2 gap-x-3 gap-y-0.5">
+          <span className="flex items-center gap-1 truncate">
+            <i className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: '#1c1f2b', border: '1px solid #3a4256' }} />
+            <span className="text-muted truncate">👻 ghost town</span>
+          </span>
           {top.map((a) => (
             <span key={a.i} className="flex items-center gap-1 truncate">
               <i className="inline-block h-3 w-3 shrink-0 rounded-sm" style={{ background: ownerCss(a.i, city) }} />
@@ -238,6 +242,18 @@ function Inspector({ city }: { city: City }) {
       {f.fire > 0 && (
         <div className="text-fire mt-2">🔥 {['', 'Smoking', 'On fire', 'Inferno'][f.fire]} — hotspot score {f.hotspot.toFixed(2)}</div>
       )}
+      {f.ghost && <div className="text-muted mt-2">👻 Ghost town — none of its owners has committed in over a year</div>}
+      {(() => {
+        const d = city.dirs[f.dir]
+        if (!d || d.files < 3) return null
+        return (
+          <div className={`mt-2 ${d.bus <= 1 ? 'text-fire' : 'text-muted'}`}>
+            🚌 <span className="font-mono">{d.path || '(root)'}</span> bus factor {d.bus}
+            {d.bus === 1 && ' — one person holds this district'}
+            {d.bus === 0 && ' — most of this district already has no active owner'}
+          </div>
+        )
+      })()}
       {f.owners.length > 0 && (
         <div className="mt-2">
           <div className="text-muted mb-1">owners</div>

@@ -63,7 +63,97 @@ func Clone(ctx context.Context, url, dest string) (*Repo, error) {
 
 // Head returns the HEAD commit hash.
 func (r *Repo) Head(ctx context.Context) (string, error) {
-	out, err := git(ctx, r.Dir, "rev-parse", "HEAD")
+	return r.Resolve(ctx, "HEAD")
+}
+
+// Resolve turns any revision (branch, tag, sha prefix) into a full commit hash.
+func (r *Repo) Resolve(ctx context.Context, rev string) (string, error) {
+	out, err := git(ctx, r.Dir, "rev-parse", "--verify", rev+"^{commit}")
+	return strings.TrimSpace(out), err
+}
+
+// DiffEntry is one file changed between two commits.
+type DiffEntry struct {
+	Status  byte // A, M, D, R, C, T
+	OldPath string
+	Path    string
+	Added   int
+	Deleted int
+	Binary  bool
+}
+
+// Diff lists the files changed from base to head (three-dot: head relative to
+// the merge base, which is what a pull request shows).
+func (r *Repo) Diff(ctx context.Context, base, head string) ([]DiffEntry, error) {
+	out, err := git(ctx, r.Dir, "diff", "--numstat", "-M", "-z", "--find-renames", base+"..."+head)
+	if err != nil {
+		return nil, err
+	}
+	status, err := git(ctx, r.Dir, "diff", "--name-status", "-M", "-z", base+"..."+head)
+	if err != nil {
+		return nil, err
+	}
+	// name-status: "<status>\0<path>\0" or "R<score>\0<old>\0<new>\0"
+	byPath := map[string]int{} // indices: entries is appended to below
+	var entries []DiffEntry
+	tok := strings.Split(status, "\x00")
+	for i := 0; i < len(tok); {
+		st := tok[i]
+		if st == "" {
+			i++
+			continue
+		}
+		e := DiffEntry{Status: st[0]}
+		if (st[0] == 'R' || st[0] == 'C') && i+2 < len(tok) {
+			e.OldPath, e.Path = tok[i+1], tok[i+2]
+			i += 3
+		} else if i+1 < len(tok) {
+			e.Path = tok[i+1]
+			i += 2
+		} else {
+			break
+		}
+		byPath[e.Path] = len(entries)
+		entries = append(entries, e)
+	}
+	// numstat: "added\tdeleted\tpath\0" or "added\tdeleted\t\0old\0new\0"
+	tok = strings.Split(out, "\x00")
+	for i := 0; i < len(tok); {
+		line := tok[i]
+		if line == "" {
+			i++
+			continue
+		}
+		parts := strings.SplitN(line, "\t", 3)
+		if len(parts) != 3 {
+			i++
+			continue
+		}
+		path := parts[2]
+		if path == "" && i+2 < len(tok) {
+			path = tok[i+2]
+			i += 3
+		} else {
+			i++
+		}
+		idx, ok := byPath[path]
+		if !ok {
+			continue
+		}
+		e := &entries[idx]
+		if parts[0] == "-" {
+			e.Binary = true
+			continue
+		}
+		e.Added, _ = strconv.Atoi(parts[0])
+		e.Deleted, _ = strconv.Atoi(parts[1])
+	}
+	return entries, nil
+}
+
+// MergeBase returns the best common ancestor of a and b.
+func (r *Repo) MergeBase(ctx context.Context, a, b string) (string, error) {
+	out, err := git(ctx, r.Dir, "merge-base", a, b)
 	return strings.TrimSpace(out), err
 }
 

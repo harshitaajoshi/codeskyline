@@ -1,0 +1,58 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: csky ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - { goos: linux, goarch: amd64 }
+          - { goos: linux, goarch: arm64 }
+          - { goos: darwin, goarch: amd64 }
+          - { goos: darwin, goarch: arm64 }
+          - { goos: windows, goarch: amd64 }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: analyzer/go.mod
+          cache-dependency-path: analyzer/go.sum
+      - name: Build
+        working-directory: analyzer
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: '0'
+        run: |
+          ext=""; [ "$GOOS" = windows ] && ext=".exe"
+          go build -trimpath -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" -o "dist/csky_${GOOS}_${GOARCH}${ext}" ./cmd/csky
+          cd dist && sha256sum * > "csky_${GOOS}_${GOARCH}.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: csky-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: analyzer/dist/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "csky $GITHUB_REF_NAME" \
+            --generate-notes

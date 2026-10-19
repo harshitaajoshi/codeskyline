@@ -1,0 +1,20 @@
+# Dogfooding: run the PR City action on this repository's own pull requests.
+name: PR City
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  city:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./action
+        id: city
+      - run: echo "risk=${{ steps.city.outputs.risk }} score=${{ steps.city.outputs.score }}"

@@ -86,6 +86,9 @@ type Dir struct {
 	Depth  int    `json:"depth"`
 	Files  int    `json:"files"` // files in this directory and all descendants
 	Lines  int    `json:"lines"`
+	// Bus is the truck factor: how many authors could leave before more
+	// than half of this district's live files have no remaining owner.
+	Bus int `json:"bus"`
 	Rect
 }
 
@@ -129,6 +132,9 @@ type File struct {
 	// does not reshuffle during time travel. Lines is 0 for them.
 	Removed  bool `json:"removed,omitempty"`
 	MaxLines int  `json:"maxLines"` // largest line count the file ever had
+	// Ghost marks a file whose owners have all been inactive for over a
+	// year: nobody left who knows it.
+	Ghost bool `json:"ghost,omitempty"`
 }
 
 // Stats are repo-wide aggregates used for legends and scales.

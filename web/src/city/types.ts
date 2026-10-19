@@ -37,6 +37,7 @@ export interface Dir extends Rect {
   depth: number
   files: number
   lines: number
+  bus: number // truck factor of the district
 }
 
 export interface Owner {
@@ -70,6 +71,7 @@ export interface File extends Rect {
   binary?: boolean
   removed?: boolean // exists only in history; keeps its lot
   maxLines: number
+  ghost?: boolean // no active owner left
 }
 
 export interface Keyframe {

@@ -1,0 +1,103 @@
+name: CodeSkyline PR City
+description: Posts a hotspot / ownership risk report on pull requests, based on the repository's git history.
+author: harshitaajoshi
+branding:
+  icon: map
+  color: orange
+
+inputs:
+  github-token:
+    description: Token used to post the sticky comment.
+    default: ${{ github.token }}
+  version:
+    description: csky release tag to use (e.g. v0.1.0) or "latest".
+    default: latest
+  comment:
+    description: Post / update a sticky PR comment.
+    default: 'true'
+  city-url:
+    description: Base URL of a hosted CodeSkyline to link the city from (empty to omit).
+    default: https://codeskyline.harshitaajoshi.workers.dev
+
+outputs:
+  risk:
+    description: low | medium | high
+    value: ${{ steps.report.outputs.risk }}
+  score:
+    description: 0..100
+    value: ${{ steps.report.outputs.score }}
+  report:
+    description: Path to the JSON report.
+    value: ${{ steps.report.outputs.report }}
+
+runs:
+  using: composite
+  steps:
+    - name: Check history depth
+      shell: bash
+      run: |
+        if [ "$(git rev-parse --is-shallow-repository)" = "true" ]; then
+          echo "::warning::Shallow clone detected; fetching full history. Use actions/checkout with fetch-depth: 0 to skip this."
+          git fetch --unshallow --quiet || git fetch --deepen=100000 --quiet
+        fi
+        git fetch --quiet origin "+refs/heads/${{ github.event.pull_request.base.ref }}:refs/remotes/origin/${{ github.event.pull_request.base.ref }}" || true
+
+    - name: Install csky
+      shell: bash
+      env:
+        VERSION: ${{ inputs.version }}
+        GH_TOKEN: ${{ inputs.github-token }}
+      run: |
+        set -euo pipefail
+        os=$(uname -s | tr '[:upper:]' '[:lower:]'); arch=$(uname -m)
+        case "$arch" in x86_64) arch=amd64;; aarch64|arm64) arch=arm64;; esac
+        asset="csky_${os}_${arch}"
+        if [ "$VERSION" = latest ]; then
+          url="https://github.com/harshitaajoshi/codeskyline/releases/latest/download/${asset}"
+        else
+          url="https://github.com/harshitaajoshi/codeskyline/releases/download/${VERSION}/${asset}"
+        fi
+        mkdir -p "$RUNNER_TEMP/csky"
+        curl -fsSL "$url" -o "$RUNNER_TEMP/csky/csky"
+        chmod +x "$RUNNER_TEMP/csky/csky"
+        echo "$RUNNER_TEMP/csky" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/csky/csky" version
+
+    - name: Build report
+      id: report
+      shell: bash
+      env:
+        BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        AUTHOR: ${{ github.event.pull_request.user.login }}
+        CITY: ${{ inputs.city-url }}
+      run: |
+        set -euo pipefail
+        url=""
+        if [ -n "$CITY" ]; then url="${CITY%/}/r/${GITHUB_REPOSITORY}"; fi
+        csky pr --repo . --base "$BASE_SHA" --head "$HEAD_SHA" --author "$AUTHOR" \
+          --name "$GITHUB_REPOSITORY" --city-url "$url" \
+          --md "$RUNNER_TEMP/codeskyline.md" --json "$RUNNER_TEMP/codeskyline.json" \
+          --summary "$GITHUB_STEP_SUMMARY"
+        echo "report=$RUNNER_TEMP/codeskyline.json" >> "$GITHUB_OUTPUT"
+        echo "risk=$(jq -r .risk "$RUNNER_TEMP/codeskyline.json")" >> "$GITHUB_OUTPUT"
+        echo "score=$(jq -r .score "$RUNNER_TEMP/codeskyline.json")" >> "$GITHUB_OUTPUT"
+
+    - name: Post sticky comment
+      if: inputs.comment == 'true' && github.event_name == 'pull_request'
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        PR: ${{ github.event.pull_request.number }}
+      run: |
+        set -euo pipefail
+        body="$RUNNER_TEMP/codeskyline.md"
+        existing=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate \
+          --jq '[.[] | select(.body | startswith("<!-- codeskyline-pr -->"))][0].id' 2>/dev/null || true)
+        if [ -n "$existing" ] && [ "$existing" != "null" ]; then
+          gh api -X PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" -F body=@"$body" >/dev/null
+          echo "updated comment $existing"
+        else
+          gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" -F body=@"$body" >/dev/null || \
+            echo "::notice::Could not post a comment (fork PRs have read-only tokens); see the job summary instead."
+        fi

@@ -23,11 +23,12 @@ import (
 type Options struct {
 	Name         string // display name, e.g. "facebook/react"
 	URL          string
-	MaxCommits   int   // cap on first-parent commits walked; 0 = all
-	Keyframes    int   // max timeline keyframes; defaults to 256
-	MaxFileBytes int64 // files larger than this are not read for counting
-	RecentWindow int64 // seconds; defaults to 365 days
-	Now          int64 // analysis timestamp; defaults to time.Now
+	Rev          string // commit to analyze; defaults to HEAD
+	MaxCommits   int    // cap on first-parent commits walked; 0 = all
+	Keyframes    int    // max timeline keyframes; defaults to 256
+	MaxFileBytes int64  // files larger than this are not read for counting
+	RecentWindow int64  // seconds; defaults to 365 days
+	Now          int64  // analysis timestamp; defaults to time.Now
 	// Progress receives human-readable stage updates.
 	Progress func(stage, detail string)
 }
@@ -84,7 +85,11 @@ type fileAgg struct {
 // Run analyzes r and returns its City.
 func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 	opt.defaults()
-	head, err := r.Head(ctx)
+	rev := opt.Rev
+	if rev == "" {
+		rev = "HEAD"
+	}
+	head, err := r.Resolve(ctx, rev)
 	if err != nil {
 		return nil, err
 	}
@@ -450,13 +455,32 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 		dirs[i] = model.Dir{ID: i, Path: d.Path, Parent: d.Parent, Depth: d.Depth, Files: d.Leaves, Rect: d.Rect}
 		dirIdx[d.Path] = i
 	}
+	// Knowledge: who still knows each file, and how many could leave.
+	staleBefore := lastTime - 365*24*3600
+	subtree := make([][][]int, len(dirs)) // dir → owner sets of live files beneath it
 	for i := range files {
 		f := &files[i]
 		f.Rect = lay.Rects[i]
 		f.Dir = dirIdx[parentDir(f.Path)]
+		// Someone "knows" a file if they wrote a meaningful share of it and
+		// are still around. A file touched within the year is not a ghost
+		// even if its big owners have left: whoever touched it has context.
+		var knowers []int
+		for _, o := range f.Owners {
+			if o.Share >= 0.1 && authors[o.Author].LastSeen >= staleBefore {
+				knowers = append(knowers, o.Author)
+			}
+		}
+		f.Ghost = !f.Removed && !f.Generated && !f.Vendored && len(f.Owners) > 0 && len(knowers) == 0 && f.LastTouched < staleBefore
 		for d := f.Dir; d >= 0; d = dirs[d].Parent {
 			dirs[d].Lines += f.Lines
+			if !f.Removed && !f.Generated && !f.Vendored && !f.Binary {
+				subtree[d] = append(subtree[d], knowers)
+			}
 		}
+	}
+	for i := range dirs {
+		dirs[i].Bus = metrics.TruckFactor(subtree[i])
 	}
 
 	// --- Stats -----------------------------------------------------------

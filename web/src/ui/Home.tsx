@@ -115,16 +115,21 @@ export function Home({ onOpen }: { onOpen: (owner: string, name: string, sha?: s
                 onClick={() => onOpen(g.owner, g.name, g.sha)}
                 className="panel hover:border-accent/50 flex items-center justify-between gap-3 px-4 py-3 text-left"
               >
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <div className="truncate font-medium">
                     {g.owner}/{g.name}
                   </div>
-                  <div className="text-muted text-xs">
+                  <div className="text-muted truncate text-xs">
                     {formatNum(g.files)} files · {formatNum(g.commits)} commits
                     {g.burning > 0 && <span className="text-fire"> · 🔥 {g.burning}</span>}
                   </div>
                 </div>
-                <img src={`/badge/${g.owner}/${g.name}.svg`} alt="" className="h-6 shrink-0 opacity-90" loading="lazy" />
+                <img
+                  src={`/badge/${g.owner}/${g.name}.svg?label=`}
+                  alt=""
+                  className="h-5 w-auto max-w-[45%] shrink-0 object-contain opacity-90"
+                  loading="lazy"
+                />
               </button>
             ))}
             {gallery.length === 0 &&

@@ -7,7 +7,7 @@ const FIRE = ['#5b6478', '#f5a623', '#ff6a3d', '#ff2d2d']
  * columns of normalized height, hot columns colored by fire level.
  */
 export function skylineBadge(s: Summary, opts: { label?: string; theme?: 'dark' | 'light' } = {}): string {
-  const label = opts.label ?? 'codeskyline'
+  const label = opts.label ?? 'codeskyline' // "" hides the label (gallery thumbnails)
   const dark = opts.theme !== 'light'
   const bg = dark ? '#0b0f1a' : '#f6f8fb'
   const fg = dark ? '#e6ebf5' : '#1b2233'
@@ -18,7 +18,7 @@ export function skylineBadge(s: Summary, opts: { label?: string; theme?: 'dark' 
   const skyW = 120
   const skyH = 18
   const pad = 8
-  const labelW = 7 * label.length + 8
+  const labelW = label ? 7 * label.length + 8 : 0
   const stats = `${compact(s.files)} files · ${compact(s.lines)} lines${s.burning ? ` · ${s.burning}🔥` : ''}`
   const statsW = 6.2 * stats.length + 8
   const w = pad + labelW + skyW + pad + statsW

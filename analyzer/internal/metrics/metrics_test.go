@@ -76,6 +76,25 @@ func TestScoreHotspotsRanksAndThresholds(t *testing.T) {
 	}
 }
 
+func TestTruckFactor(t *testing.T) {
+	// One author knows everything: factor 1.
+	if f := TruckFactor([][]int{{0}, {0}, {0}, {0}}); f != 1 {
+		t.Errorf("solo: %d", f)
+	}
+	// Two authors each covering every file: both must go.
+	if f := TruckFactor([][]int{{0, 1}, {0, 1}, {0, 1}}); f != 2 {
+		t.Errorf("pair: %d", f)
+	}
+	// Four files split across four authors: removing two orphans half, not
+	// more than half; a third is needed.
+	if f := TruckFactor([][]int{{0}, {1}, {2}, {3}}); f != 3 {
+		t.Errorf("spread: %d", f)
+	}
+	if f := TruckFactor(nil); f != 0 {
+		t.Errorf("empty: %d", f)
+	}
+}
+
 func TestTopOwnersAndLogin(t *testing.T) {
 	o := TopOwners(map[int]float64{0: 10, 1: 30, 2: 60}, 2)
 	if len(o) != 2 || o[0].Author != 2 || o[0].Share != 0.6 || o[1].Author != 1 {

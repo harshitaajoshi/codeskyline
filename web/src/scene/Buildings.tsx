@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { useStore } from '../store'
-import { ACTIVITY, CHURN, FIRE, GPU_MODE, GRAY, OWNER_SLOTS, fileColor, makeColorContext, paletteSlot, type RGB } from '../city/colors'
+import { ACTIVITY, CHURN, FIRE, GHOST, GPU_MODE, GRAY, OWNER_SLOTS, fileColor, makeColorContext, paletteSlot, type RGB } from '../city/colors'
 import { height, type HeightScale } from '../city/scales'
 import { linesAt, type TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
@@ -78,6 +78,7 @@ export function Buildings({ city, timeline }: { city: City; timeline: TimelineDa
       uFire: { value: FIRE.map((c) => new THREE.Vector3(...c)) },
       uPalette: { value: Array.from({ length: OWNER_SLOTS }, (_, i) => new THREE.Vector3(...paletteSlot(i))) },
       uGray: { value: new THREE.Vector3(...GRAY) },
+      uGhost: { value: new THREE.Vector3(...GHOST) },
     }),
     [timeline, textures, city],
   )
@@ -135,10 +136,18 @@ export function Buildings({ city, timeline }: { city: City; timeline: TimelineDa
     m.computeBoundingSphere()
   }, [city, visible, heightScale, timeline, k])
 
+  // Static per-file flags the timeline textures do not carry: 1 = ghost.
+  const aFlags = useMemo(() => {
+    const arr = new Float32Array(Math.max(1, city.files.length))
+    visible.forEach((fi, slot) => (arr[slot] = city.files[fi]!.ghost ? 1 : 0))
+    return new THREE.InstancedBufferAttribute(arr, 1)
+  }, [city, visible])
+
   useEffect(() => {
     const m = mesh.current
     m.geometry.setAttribute('aFile', aFile)
-  }, [aFile])
+    m.geometry.setAttribute('aFlags', aFlags)
+  }, [aFile, aFlags])
 
   // --- static colors (language/age) + hover/select highlight ---------------
   const ctx = useMemo(() => makeColorContext(city, mode), [city, mode])
@@ -209,6 +218,8 @@ export function Buildings({ city, timeline }: { city: City; timeline: TimelineDa
 const VERT_PARS = /* glsl */ `
 attribute float aFile;
 attribute float aHighlight;
+attribute float aFlags;
+uniform vec3 uGhost;
 uniform sampler2D uLines;
 uniform sampler2D uMeta;
 uniform float uT;
@@ -279,6 +290,8 @@ if (uMode > 0 && aHighlight < 0.5) {
   } else {
     int slot = int((csky_fr < 0.5 ? csky_m0.g : csky_m1.g) * 255.0 + 0.5);
     vColor.rgb = slot < ${OWNER_SLOTS} ? uPalette[slot] : uGray;
+    // Ghost town: at the present day, files nobody active still owns go dark.
+    if (aFlags > 0.5 && csky_t >= float(uK - 1) - 0.001) vColor.rgb = uGhost;
   }
 }
 #endif

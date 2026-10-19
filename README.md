@@ -9,21 +9,49 @@ commit history. Scrub a timeline to watch the city grow over years of commits.
 
 ![expressjs/express rendered as a city, colored by churn, with hotspot buildings on fire](docs/images/express-churn.png)
 
-> Status: early development. The analyzer CLI and the 3D viewer work locally;
-> time travel, ownership views, the hosted service and the GitHub Action are in progress.
+> Status: working end to end locally — analyzer, viewer, time travel, ownership
+> views, hosted service (Cloudflare) and the PR Action. Public deployment is next.
 
 ## What makes it different
 
 - **Time travel** — a slider replays the whole history on the GPU: buildings rise,
   get demolished and catch fire as the commits roll by.
-- **Ownership view** — districts colored by who really maintains them, with
-  bus-factor warnings and "ghost town" detection for abandoned code.
+- **Ownership view** — buildings colored by who really maintains them (knowledge
+  decays with a one-year half-life), per-district bus factor, and "ghost town"
+  detection for code nobody active still owns.
 - **Hotspots that mean something** — churn × complexity × bug-fix history
   (after Tornhill's *Your Code as a Crime Scene*), validated against real repos.
 - **PR mode** — a GitHub Action posts a city diff on every pull request: which
   buildings changed, and whether you just touched something on fire.
 - **Shareable** — every view is a URL; every repo gets a README badge that is a
   tiny silhouette of its own skyline.
+
+## PR mode (GitHub Action)
+
+```yaml
+- uses: actions/checkout@v4
+  with: { fetch-depth: 0 }
+- uses: harshitaajoshi/codeskyline/action@v1
+```
+
+Every pull request gets a sticky comment: hotspot files touched, districts
+with bus factor 1, ownership crossings with suggested reviewers, and ghost-town
+files nobody active still owns. Runs entirely in your CI; nothing is uploaded.
+See [`action/`](action/README.md).
+
+## Hosted service
+
+`edge/` is a Cloudflare Worker (viewer + API + badges + short links) with the
+analyzer running in a scale-to-zero Cloudflare Container. Paste a repo URL,
+watch it build with live progress, share `/r/owner/repo?t=0.4&mode=owners`
+links, and embed a skyline badge:
+
+```md
+![CodeSkyline](https://<your-worker>/badge/owner/repo.svg)
+```
+
+See [`edge/README.md`](edge/README.md) for the one-time deploy steps and the
+cost guardrails (monthly job budget, repo size cap, rate limits).
 
 ## Repository layout
 

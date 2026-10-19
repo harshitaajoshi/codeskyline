@@ -43,6 +43,7 @@ export const ACTIVITY: RGB[] = ['#1f2a44', '#2b4c7e', '#3f8fd2', '#8fe3ff', '#ff
 const AGE: RGB[] = ['#f8f1a6', '#8ad5c9', '#4a7aa8', '#2b3659'].map(hex) // new → old
 export const FIRE: RGB[] = [GRAY, hex('#f5a623'), hex('#ff6a3d'), hex('#ff2d2d')]
 export const RUIN: RGB = hex('#171c2a')
+export const GHOST: RGB = hex('#1c1f2b') // owners mode: nobody active owns this
 
 // Linguist-ish colors for common languages; everything else hashes to a palette.
 const LANG: Record<string, string> = {
@@ -113,6 +114,7 @@ export function fileColor(f: File, i: number, ctx: ColorContext): RGB {
     case 'hotspots':
       return f.fire > 0 ? FIRE[f.fire]! : lerp(DIM, hex('#6b4a2a'), f.hotspot)
     case 'owners': {
+      if (f.ghost) return GHOST
       const o = f.owners[0]
       return (o && ctx.owners.get(o.author)) ?? GRAY
     }

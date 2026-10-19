@@ -28,6 +28,8 @@ func main() {
 	switch os.Args[1] {
 	case "analyze":
 		os.Exit(runAnalyze(os.Args[2:]))
+	case "pr":
+		os.Exit(runPR(os.Args[2:]))
 	case "version", "--version", "-v":
 		fmt.Println("csky", version)
 	default:
@@ -41,14 +43,19 @@ func usage() {
 
 usage:
   csky analyze <path | https://github.com/owner/repo> [flags]
+  csky pr --base <ref> [--head HEAD] [--author login] [--repo .] [flags]
   csky version
 
-flags:
+analyze flags:
   -o, --out        output file (default: <name>.city.json)
   --max-commits    cap first-parent commits walked (default: all)
   --name           display name, e.g. owner/repo (default: derived)
   --pretty         indent JSON output
-  --keep-clone     do not delete the temporary clone`)
+  --keep-clone     do not delete the temporary clone
+
+pr flags:
+  --md, --json, --summary   where to write the comment / report
+  --city-url                link to the hosted city`)
 }
 
 func runAnalyze(args []string) int {
