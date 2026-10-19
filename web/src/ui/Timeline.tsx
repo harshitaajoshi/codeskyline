@@ -1,9 +1,51 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { timeAt } from '../city/timeline'
 import type { City } from '../city/types'
 
 const SPEEDS = [4, 12, 30, 60]
+
+/**
+ * Records the WebGL canvas while the timeline plays from the beginning,
+ * entirely in the browser, and downloads a .webm. The HUD is DOM, not
+ * canvas, so the video is just the city.
+ */
+async function recordTimelapse(city: City, onProgress: (p: number) => void): Promise<void> {
+  const canvas = document.querySelector('canvas')
+  if (!canvas || typeof MediaRecorder === 'undefined') throw new Error('recording is not supported in this browser')
+  const stream = canvas.captureStream(60)
+  const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find((m) => MediaRecorder.isTypeSupported(m))
+  if (!mime) throw new Error('no supported video codec')
+  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
+  const chunks: Blob[] = []
+  rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data)
+  const done = new Promise<void>((resolve) => (rec.onstop = () => resolve()))
+
+  const s = useStore.getState()
+  const last = Math.max(1, city.timeline.keyframes.length - 1)
+  s.setT(0)
+  rec.start(250)
+  s.setPlaying(true)
+  await new Promise<void>((resolve) => {
+    const unsub = useStore.subscribe((st) => {
+      onProgress(st.t / last)
+      if (!st.playing || st.t >= last) {
+        unsub()
+        resolve()
+      }
+    })
+  })
+  // Hold the final frame for a beat so the video does not end abruptly.
+  await new Promise((r) => setTimeout(r, 1200))
+  rec.stop()
+  await done
+  const blob = new Blob(chunks, { type: mime })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${city.repo.name.replace('/', '__')}-timelapse.${mime.includes('mp4') ? 'mp4' : 'webm'}`
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+}
 
 export function Timeline({ city }: { city: City }) {
   const t = useStore((s) => s.t)
@@ -15,6 +57,7 @@ export function Timeline({ city }: { city: City }) {
   const setSpeed = useStore((s) => s.setSpeed)
   const goLive = useStore((s) => s.goLive)
 
+  const [recording, setRecording] = useState<number | null>(null)
   const kf = city.timeline.keyframes
   const last = Math.max(0, kf.length - 1)
   const live = t >= last
@@ -22,6 +65,18 @@ export function Timeline({ city }: { city: City }) {
   const date = useMemo(() => new Date(timeAt(city, t) * 1000), [city, t])
   const years = useMemo(() => yearTicks(city), [city])
   if (kf.length < 2) return null
+
+  const exportVideo = async () => {
+    if (recording != null) return
+    setRecording(0)
+    try {
+      await recordTimelapse(city, setRecording)
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRecording(null)
+    }
+  }
 
   const author = cur ? city.authors[cur.author] : undefined
   return (
@@ -91,6 +146,14 @@ export function Timeline({ city }: { city: City }) {
             title="jump to HEAD"
           >
             ● {live ? 'now' : 'go to now'}
+          </button>
+          <button
+            onClick={() => void exportVideo()}
+            disabled={recording != null}
+            className="text-muted hover:text-ink shrink-0 rounded-md px-2 py-1 text-xs disabled:opacity-70"
+            title="play from the start and download a video of it"
+          >
+            {recording == null ? '⏺ export' : `⏺ ${Math.round(recording * 100)}%`}
           </button>
         </div>
       </div>

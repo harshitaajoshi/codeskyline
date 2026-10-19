@@ -37,7 +37,13 @@ const (
 
 // ScoreHotspots returns a 0..1 score and a fire level (0..3) per file.
 //
-// score = pct(recent churn) × pct(complexity) × (1 + bug-fix ratio)
+// score = pct(recent churn) × pct(complexity)
+//
+// This is Tornhill's hotspot definition. An earlier version multiplied in
+// (1 + bug-fix ratio); measured on 12 repositories (docs/benchmarks.md) that
+// term lowered precision@20 from 70% to 60%, because a noisy ratio on
+// rarely-touched files outranked files that are actually being worked on.
+// Bug-fix counts are still reported, just not used for ranking.
 //
 // Percentile ranks make the product comparable across repos of any size and
 // language mix. Fire levels are assigned by rank so every city has a few
@@ -55,12 +61,8 @@ func ScoreHotspots(in []HotspotInput) (scores []float64, fire []int) {
 		if !h.Eligible || h.RecentCommits < minRecent {
 			continue
 		}
-		bugRatio := 0.0
-		if h.Commits > 0 {
-			bugRatio = float64(h.BugFixes) / float64(h.Commits)
-		}
-		s := churnPct[i] * cplxPct[i] * (1 + bugRatio)
-		scores[i] = s / 2 // (1+bugRatio) ≤ 2, keep in 0..1
+		s := churnPct[i] * cplxPct[i]
+		scores[i] = s
 		if s > 0 {
 			candidates = append(candidates, i)
 		}

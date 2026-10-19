@@ -19,8 +19,10 @@ commit history. Scrub a timeline to watch the city grow over years of commits.
 - **Ownership view** — buildings colored by who really maintains them (knowledge
   decays with a one-year half-life), per-district bus factor, and "ghost town"
   detection for code nobody active still owns.
-- **Hotspots that mean something** — churn × complexity × bug-fix history
-  (after Tornhill's *Your Code as a Crime Scene*), validated against real repos.
+- **Hotspots that mean something** — recent churn × complexity (after
+  Tornhill's *Your Code as a Crime Scene*), [validated on 12 real repos](docs/benchmarks.md):
+  the top-20 hotspots catch 70% of the files that get bug fixes in the following
+  year, against a 21% base rate.
 - **PR mode** — a GitHub Action posts a city diff on every pull request: which
   buildings changed, and whether you just touched something on fire.
 - **Shareable** — every view is a URL; every repo gets a README badge that is a
