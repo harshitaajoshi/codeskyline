@@ -25,12 +25,14 @@ type HotspotInput struct {
 	Eligible      bool // false for generated/vendored/binary files
 }
 
-// Fire thresholds, as fractions of eligible files, from hottest down.
+// Fire thresholds, as fractions of eligible files, from hottest down. The
+// absolute caps keep a 10k-file repo from having hundreds of fires: a city
+// where everything burns says nothing.
 const (
-	infernoFrac = 0.02
-	flamesFrac  = 0.05
-	smokeFrac   = 0.08
-	minRecent   = 3 // a file needs this many recent commits to burn at all
+	infernoFrac, infernoMax = 0.02, 15
+	flamesFrac, flamesMax   = 0.05, 40
+	smokeFrac, smokeMax     = 0.08, 80
+	minRecent               = 3 // a file needs this many recent commits to burn at all
 )
 
 // ScoreHotspots returns a 0..1 score and a fire level (0..3) per file.
@@ -71,9 +73,9 @@ func ScoreHotspots(in []HotspotInput) (scores []float64, fire []int) {
 			eligible++
 		}
 	}
-	inferno := atLeast(1, int(float64(eligible)*infernoFrac))
-	flames := atLeast(1, int(float64(eligible)*flamesFrac))
-	smoke := atLeast(1, int(float64(eligible)*smokeFrac))
+	inferno := clampInt(int(float64(eligible)*infernoFrac), 1, infernoMax)
+	flames := clampInt(int(float64(eligible)*flamesFrac), 1, flamesMax)
+	smoke := clampInt(int(float64(eligible)*smokeFrac), 1, smokeMax)
 	for rank, i := range candidates {
 		switch {
 		case rank < inferno:
@@ -87,9 +89,12 @@ func ScoreHotspots(in []HotspotInput) (scores []float64, fire []int) {
 	return scores, fire
 }
 
-func atLeast(min, v int) int {
-	if v < min {
-		return min
+func clampInt(v, lo, hi int) int {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
 	}
 	return v
 }

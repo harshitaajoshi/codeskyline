@@ -11,6 +11,7 @@ import type { City } from '../city/types'
 import { Buildings } from './Buildings'
 import { Districts } from './Districts'
 import { Fire } from './Fire'
+import { Labels } from './Labels'
 import { Lots } from './Lots'
 
 export function Scene({ city }: { city: City }) {
@@ -56,6 +57,9 @@ export function Scene({ city }: { city: City }) {
       <Lots city={city} timeline={timeline} />
       <Buildings city={city} timeline={timeline} />
       <Fire city={city} timeline={timeline} />
+      <Suspense fallback={null}>
+        <Labels city={city} />
+      </Suspense>
 
       <Playback />
       <Camera city={city} />
