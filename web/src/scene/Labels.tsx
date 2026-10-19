@@ -3,9 +3,9 @@ import { Text } from '@react-three/drei'
 import type { City, Dir } from '../city/types'
 
 /**
- * District names painted on the ground along each district's near edge.
- * Only the larger, shallower districts get labels; deep alleys would just be
- * noise from any distance a whole city is viewed at.
+ * District names painted on the street just outside each district's near
+ * edge (toward the default camera), so nothing inside the district can cover
+ * them. Only shallow districts with real content get labels.
  */
 export function Labels({ city }: { city: City }) {
   const labels = useMemo(() => pickLabels(city), [city])
@@ -14,16 +14,16 @@ export function Labels({ city }: { city: City }) {
       {labels.map((l) => (
         <Text
           key={l.dir.id}
-          position={[l.x, 0.08 * l.dir.depth + 0.12, l.z]}
+          position={[l.x, l.y, l.z]}
           rotation={[-Math.PI / 2, 0, 0]}
           fontSize={l.size}
-          color="#9fb0d0"
-          fillOpacity={0.85}
+          color="#d6e0f5"
+          fillOpacity={0.95}
           anchorX="left"
           anchorY="top"
-          maxWidth={l.dir.w - l.size}
-          clipRect={[0, -l.size * 1.3, l.dir.w - l.size, 0]}
-          renderOrder={2}
+          whiteSpace="nowrap"
+          clipRect={[0, -l.size * 1.4, l.dir.w, l.size * 0.2]}
+          renderOrder={3}
         >
           {l.text}
         </Text>
@@ -36,23 +36,30 @@ interface Label {
   dir: Dir
   text: string
   x: number
+  y: number
   z: number
   size: number
 }
 
+// Mirrors layout.street in the analyzer: the gap between sibling districts.
+function street(depth: number) {
+  return Math.max(0.8, 3 - 0.6 * depth)
+}
+
 function pickLabels(city: City): Label[] {
   const out: Label[] = []
-  const root = city.dirs[0]
-  if (!root) return out
-  const citySide = Math.max(root.w, root.d)
   for (const d of city.dirs) {
-    if (d.depth === 0 || d.depth > 3) continue
-    const side = Math.min(d.w, d.d)
-    // Big enough to matter: at least ~4% of the city's side, or many files.
-    if (side < citySide * 0.04 && d.files < 25) continue
-    const name = d.path.slice(d.path.lastIndexOf('/') + 1)
-    const size = Math.max(0.9, Math.min(side * 0.14, citySide * 0.022))
-    out.push({ dir: d, text: name, x: d.x + size * 0.5, z: d.z + size * 0.4, size })
+    if (d.depth === 0 || d.depth > 3 || d.files < 3) continue
+    const gap = street(d.depth)
+    const size = Math.max(0.6, Math.min(gap * 0.85, Math.min(d.w, d.d) * 0.14))
+    out.push({
+      dir: d,
+      text: d.path.slice(d.path.lastIndexOf('/') + 1),
+      x: d.x + 0.2,
+      y: 0.08 * (d.depth - 1) + 0.11, // just above the parent's plate
+      z: d.z + d.d + 0.18,
+      size,
+    })
   }
   return out
 }
