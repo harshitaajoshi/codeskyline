@@ -52,7 +52,10 @@ export function Walk({ city, timeline }: { city: City; timeline: TimelineData })
     }
   }, [])
 
-  // Drop onto a street near the city centre when walking starts.
+  // Drop onto a street near the city centre when walking starts. Pointer
+  // lock needs a user gesture: the Walk button click usually still counts,
+  // and clicking the city grabs the mouse again after Esc.
+  const { gl } = useThree()
   useEffect(() => {
     if (!walking) return
     const { cx, cz } = cityBounds(city)
@@ -60,8 +63,15 @@ export function Walk({ city, timeline }: { city: City; timeline: TimelineData })
     camera.position.set(cx, EYE, root.z + root.d - 0.6)
     camera.lookAt(cx, EYE, cz)
     const t = setTimeout(() => controls.current?.lock(), 50)
-    return () => clearTimeout(t)
-  }, [walking, city, camera])
+    const grab = () => {
+      if (!controls.current?.isLocked) controls.current?.lock()
+    }
+    gl.domElement.addEventListener('click', grab)
+    return () => {
+      clearTimeout(t)
+      gl.domElement.removeEventListener('click', grab)
+    }
+  }, [walking, city, camera, gl])
 
   const blocked = (x: number, z: number) => {
     const cx = Math.floor(x / CELL)

@@ -1,5 +1,6 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react'
-import { Canvas, useFrame } from '@react-three/fiber'
+import type * as THREE from 'three'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { CameraControls } from '@react-three/drei'
 import { Bloom, EffectComposer, N8AO, Vignette } from '@react-three/postprocessing'
 import type CameraControlsImpl from 'camera-controls'
@@ -13,6 +14,7 @@ import { Districts } from './Districts'
 import { Flames } from './Flames'
 import { Labels } from './Labels'
 import { Lots } from './Lots'
+import { Marker } from './Marker'
 import { Sky } from './Sky'
 import { Walk } from './Walk'
 
@@ -49,7 +51,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       style={hero ? { pointerEvents: 'none' } : undefined}
     >
       <color attach="background" args={['#05070d']} />
-      <fog attach="fog" args={['#0a0e1a', size * 1.4, size * 5]} />
+      <fog attach="fog" args={['#0c1020', size * 1.2, size * 4.5]} />
       <Sky radius={size * 6} />
       <hemisphereLight args={['#6f8cc9', '#1a1f2e', 0.55]} />
       <directionalLight
@@ -68,9 +70,10 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <pointLight position={[cx, size * 0.25, cz]} intensity={size * 1.5} distance={size * 1.6} color="#ffb070" decay={2} />
 
       <mesh rotation-x={-Math.PI / 2} position={[cx, -0.02, cz]} receiveShadow>
-        <planeGeometry args={[size * 8, size * 8]} />
-        <meshStandardMaterial color="#090c15" roughness={1} />
+        <planeGeometry args={[size * 10, size * 10]} />
+        <meshStandardMaterial color="#0f1322" roughness={1} />
       </mesh>
+      <DepthTuning size={size} />
 
       <Districts city={city} />
       <Lots city={city} timeline={timeline} fixedK={fixedK} />
@@ -80,6 +83,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
         <Labels city={city} />
       </Suspense>
 
+      {!hero && <Marker city={city} timeline={timeline} />}
       {hero ? <HeroCamera city={city} /> : <Camera city={city} />}
       {!hero && <Playback />}
       {!hero && <Walk city={city} timeline={timeline} />}
@@ -91,6 +95,23 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       </EffectComposer>
     </Canvas>
   )
+}
+
+/**
+ * Depth precision scales with the near plane. A big city hundreds of units
+ * across with near=0.3 makes lots, plates and labels (a few cm apart)
+ * z-fight and shimmer; pushing near out with city size fixes it. Walk mode
+ * needs it tight again so nearby walls do not clip.
+ */
+function DepthTuning({ size }: { size: number }) {
+  const walking = useStore((s) => s.walking)
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  useEffect(() => {
+    camera.near = walking ? 0.15 : Math.max(0.5, size * 0.004)
+    camera.far = Math.max(2000, size * 14)
+    camera.updateProjectionMatrix()
+  }, [camera, size, walking])
+  return null
 }
 
 /** Advances the timeline while playing. Lives in the render loop, not React state per frame. */
@@ -120,24 +141,17 @@ function Camera({ city }: { city: City }) {
   const { cx, cz, size } = cityBounds(city)
 
   useEffect(() => {
+    if (walking) return
     const c = ref.current
     if (!c) return
     // Start far out and high, then glide in — unless a link asked for a
-    // specific building, in which case the fly-to below takes over.
+    // specific building, in which case the fly-to below takes over. Also
+    // runs when the controls come back after a walk.
     void c.setLookAt(cx + size * 1.6, size * 1.4, cz + size * 2.2, cx, 0, cz, false)
     if (useStore.getState().flyTo != null) return
     const t = setTimeout(() => void c.setLookAt(cx + size * 0.55, size * 0.45, cz + size * 0.8, cx, size * 0.04, cz, true), 150)
     return () => clearTimeout(t)
-  }, [city, cx, cz, size])
-
-  // Leaving walk mode: return to the overview.
-  const wasWalking = useRef(false)
-  useEffect(() => {
-    if (wasWalking.current && !walking) {
-      void ref.current?.setLookAt(cx + size * 0.55, size * 0.45, cz + size * 0.8, cx, size * 0.04, cz, true)
-    }
-    wasWalking.current = walking
-  }, [walking, cx, cz, size])
+  }, [city, cx, cz, size, walking])
 
   useEffect(() => {
     if (flyTo == null) return
@@ -147,20 +161,23 @@ function Camera({ city }: { city: City }) {
     const h = height(linesAt(timelineFor(city), flyTo, s.k), heightScale, city.stats.maxLines)
     const tx = f.x + f.w / 2
     const tz = f.z + f.d / 2
-    const dist = Math.max(8, h * 1.6, Math.max(f.w, f.d) * 4)
+    // Far enough back that the whole building and its name tag fit.
+    const dist = Math.max(16, h * 2.4, Math.max(f.w, f.d) * 6)
     // A beat after mount so it runs after the initial placement above. No
     // cleanup: consuming flyTo re-runs this effect and must not cancel it.
     setTimeout(() => {
-      void ref.current?.setLookAt(tx + dist * 0.7, h * 0.7 + dist * 0.6, tz + dist * 0.8, tx, h * 0.5, tz, true)
+      void ref.current?.setLookAt(tx + dist * 0.75, h * 0.6 + dist * 0.55, tz + dist * 0.9, tx, h * 0.45, tz, true)
       consume()
     }, 200)
   }, [flyTo, city, heightScale, consume])
 
+  // While walking, the controls must not exist at all: even disabled, they
+  // write the camera transform every frame and would fight the walk.
+  if (walking) return null
   return (
     <CameraControls
       ref={ref}
       makeDefault
-      enabled={!walking}
       minDistance={2}
       maxDistance={size * 4}
       maxPolarAngle={Math.PI / 2 - 0.02}

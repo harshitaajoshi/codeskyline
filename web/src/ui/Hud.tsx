@@ -37,6 +37,7 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
       <TopBar city={city} onOpenFile={onOpenFile} onHome={onHome} />
       <Lens city={city} />
       <Tooltip city={city} />
+      <SelectedTag city={city} />
       <Inspector city={city} />
       <Search city={city} />
       <Timeline city={city} />
@@ -214,6 +215,26 @@ function Bar({ from, to, css }: { from: string; to: string; css: string }) {
   )
 }
 
+/** Name tag pinned above the selected building (position comes from the scene each frame). */
+function SelectedTag({ city }: { city: City }) {
+  const selected = useStore((s) => s.selected)
+  const m = useStore((s) => s.markerScreen)
+  if (selected == null || !m.visible) return null
+  const f = city.files[selected]
+  if (!f) return null
+  const name = f.path.slice(f.path.lastIndexOf('/') + 1)
+  const dir = f.path.slice(0, f.path.lastIndexOf('/'))
+  return (
+    <div className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center" style={{ left: m.x, top: m.y }}>
+      <div className="border-accent bg-panel/95 rounded-lg border px-3 py-1.5 text-center whitespace-nowrap shadow-xl backdrop-blur">
+        <div className="font-mono text-[13px] font-medium">{name}</div>
+        {dir && <div className="text-muted font-mono text-[10px]">{dir}/</div>}
+      </div>
+      <div className="text-accent -mt-0.5 text-lg leading-none">▼</div>
+    </div>
+  )
+}
+
 /** Follows the cursor over a building. */
 function Tooltip({ city }: { city: City }) {
   const hovered = useStore((s) => s.hovered)
@@ -366,6 +387,9 @@ function WalkHud({ city }: { city: City }) {
         </div>
       </div>
       <div className="pointer-events-none absolute top-1/2 left-1/2 h-1.5 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70" />
+      <div className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 text-xs text-white/60">
+        If the mouse is not captured, click the city.
+      </div>
       <button onClick={() => setWalking(false)} className="panel pointer-events-auto absolute right-3 bottom-3 px-3 py-2 text-xs">
         Leave walk mode
       </button>

@@ -25,6 +25,9 @@ interface State {
   walking: boolean
   lensOpen: boolean
   tourStep: number | null // null = closed
+  /** Screen position of the selected building's top, for the DOM name tag. */
+  markerScreen: { x: number; y: number; visible: boolean }
+  setMarkerScreen: (m: { x: number; y: number; visible: boolean }) => void
 
   setCity: (c: City) => void
   setLoading: () => void
@@ -62,6 +65,8 @@ export const useStore = create<State>((set, get) => ({
   walking: false,
   lensOpen: true,
   tourStep: null,
+  markerScreen: { x: 0, y: 0, visible: false },
+  setMarkerScreen: (markerScreen) => set({ markerScreen }),
   setCity: (city) => {
     const last = Math.max(0, city.timeline.keyframes.length - 1)
     set({ city, status: 'ready', error: undefined, hovered: null, selected: null, flyTo: null, t: last, k: last, playing: false, walking: false })
