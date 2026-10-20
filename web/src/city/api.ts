@@ -34,7 +34,12 @@ export interface GalleryEntry {
 
 async function json<T>(res: Response): Promise<T> {
   const body = (await res.json().catch(() => ({}))) as T & { error?: string }
-  if (!res.ok) throw new Error(body.error ?? `request failed (${res.status})`)
+  if (!res.ok) {
+    if (res.status === 502 || res.status === 503) {
+      throw new Error(body.error ?? 'The analysis API is not running. Locally: `pnpm dev:edge` (needs Docker). You can still drop a .city.json here.')
+    }
+    throw new Error(body.error ?? `request failed (${res.status})`)
+  }
   return body
 }
 

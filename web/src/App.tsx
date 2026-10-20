@@ -88,7 +88,7 @@ export function App() {
     >
       {showCity && <Scene city={city} />}
       {showCity && <Hud city={city} onOpenFile={() => fileInput.current?.click()} onHome={() => navigate('/')} />}
-      {route.kind === 'home' && <Home onOpen={onOpen} />}
+      {route.kind === 'home' && <Home onOpen={onOpen} onSample={(id) => navigate(`/?sample=${id}`)} />}
       <input ref={fileInput} type="file" accept=".json" className="hidden" onChange={(e) => void openFiles(e.target.files)} />
 
       {route.kind !== 'home' && status === 'loading' && !city && <Center>Building the city…</Center>}

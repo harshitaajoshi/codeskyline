@@ -29,10 +29,16 @@ canvas {
 }
 
 .panel {
-  background: color-mix(in oklab, var(--color-panel) 88%, transparent);
-  border: 1px solid var(--color-line);
-  backdrop-filter: blur(10px);
+  background: color-mix(in oklab, var(--color-panel) 82%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-line) 80%, transparent);
+  backdrop-filter: blur(14px) saturate(1.2);
   border-radius: 12px;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 0.35);
+}
+
+input[type='range'] {
+  height: 6px;
+  cursor: pointer;
 }
 
 kbd {

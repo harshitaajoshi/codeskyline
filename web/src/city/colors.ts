@@ -6,7 +6,7 @@ export type ColorMode = 'churn' | 'activity' | 'hotspots' | 'owners' | 'language
 export const MODES: { id: ColorMode; label: string; hint: string }[] = [
   { id: 'churn', label: 'Churn', hint: 'Commits so far (cumulative)' },
   { id: 'activity', label: 'Activity', hint: 'What is being worked on right now' },
-  { id: 'hotspots', label: 'Hotspots', hint: 'Churn × complexity × bug fixes' },
+  { id: 'hotspots', label: 'Hotspots', hint: 'Changes often and is complex' },
   { id: 'owners', label: 'Owners', hint: 'Who maintains each file' },
   { id: 'language', label: 'Language', hint: 'Language per file' },
   { id: 'age', label: 'Age', hint: 'When a file was created' },

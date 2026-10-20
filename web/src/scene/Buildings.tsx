@@ -20,14 +20,25 @@ const HEIGHT_MODE: Record<HeightScale, number> = { sqrt: 0, log: 1, linear: 2 }
  * in the vertex shader from keyframe textures, so scrubbing time costs a
  * single uniform update however many buildings there are.
  */
-export function Buildings({ city, timeline }: { city: City; timeline: TimelineData }) {
+export function Buildings({
+  city,
+  timeline,
+  interactive = true,
+  fixedK,
+}: {
+  city: City
+  timeline: TimelineData
+  interactive?: boolean
+  fixedK?: number
+}) {
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const mode = useStore((s) => s.mode)
   const heightScale = useStore((s) => s.heightScale)
   const hideGenerated = useStore((s) => s.hideGenerated)
   const hovered = useStore((s) => s.hovered)
   const selected = useStore((s) => s.selected)
-  const k = useStore((s) => s.k)
+  const storeK = useStore((s) => s.k)
+  const k = fixedK ?? storeK
   const hover = useStore((s) => s.hover)
   const select = useStore((s) => s.select)
 
@@ -79,6 +90,8 @@ export function Buildings({ city, timeline }: { city: City; timeline: TimelineDa
       uPalette: { value: Array.from({ length: OWNER_SLOTS }, (_, i) => new THREE.Vector3(...paletteSlot(i))) },
       uGray: { value: new THREE.Vector3(...GRAY) },
       uGhost: { value: new THREE.Vector3(...GHOST) },
+      uWindows: { value: 1 },
+      uWindowBase: { value: 0.15 },
     }),
     [timeline, textures, city],
   )
@@ -92,7 +105,9 @@ export function Buildings({ city, timeline }: { city: City; timeline: TimelineDa
         .replace('#include <color_vertex>', '#include <color_vertex>\n' + VERT_SAMPLE)
         .replace('#include <begin_vertex>', VERT_BEGIN)
       shader.fragmentShader = FRAG_PARS + shader.fragmentShader
-        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += vCskyEmissive;')
+        .replace('void main() {', 'void main() {\n vec3 csky_windowGlow = vec3(0.0);')
+        .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_FACADE)
+        .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += vCskyEmissive + csky_windowGlow;')
     }
     return m
   }, [uniforms])
@@ -104,7 +119,7 @@ export function Buildings({ city, timeline }: { city: City; timeline: TimelineDa
   }, [uniforms, mode, heightScale])
 
   useFrame(() => {
-    uniforms.uT.value = useStore.getState().t
+    uniforms.uT.value = fixedK ?? useStore.getState().t
   })
 
   // --- instance geometry ---------------------------------------------------
@@ -205,9 +220,9 @@ export function Buildings({ city, timeline }: { city: City; timeline: TimelineDa
       castShadow
       receiveShadow
       frustumCulled={false}
-      onPointerMove={onMove}
-      onPointerOut={() => hover(null)}
-      onClick={onClick}
+      onPointerMove={interactive ? onMove : undefined}
+      onPointerOut={interactive ? () => hover(null) : undefined}
+      onClick={interactive ? onClick : undefined}
     />
   )
 }
@@ -235,6 +250,11 @@ uniform vec3 uFire[4];
 uniform vec3 uPalette[${OWNER_SLOTS}];
 uniform vec3 uGray;
 varying vec3 vCskyEmissive;
+varying vec3 vCskyPos;   // position scaled to world size, y from the ground
+varying vec3 vCskyNrm;   // object-space normal
+varying float vCskySeed;
+varying float vCskyAct;
+varying float vCskyH;
 
 ivec2 cskyTexel(int idx) { return ivec2(idx % uTexW, idx / uTexW); }
 float cskyLines(int idx) { return texelFetch(uLines, cskyTexel(idx), 0).r; }
@@ -274,6 +294,19 @@ float csky_h = mix(cskyHeight(csky_l0), cskyHeight(csky_l1), csky_fr);
 vec4 csky_m0 = cskyMeta(csky_f * uK + csky_k0);
 vec4 csky_m1 = cskyMeta(csky_f * uK + csky_k1);
 vCskyEmissive = vec3(0.0);
+{
+  float sx = 1.0, sz = 1.0;
+  #ifdef USE_INSTANCING
+  sx = length(instanceMatrix[0].xyz); sz = length(instanceMatrix[2].xyz);
+  #endif
+  vCskyPos = vec3(position.x * sx, position.y * csky_h, position.z * sz);
+  vCskyNrm = normal;
+  vCskyH = csky_h;
+  vCskySeed = fract(sin(aFile * 12.9898) * 43758.5453);
+  // Windows light up with activity: cumulative churn gives a baseline, the
+  // current keyframe's commits add a burst.
+  vCskyAct = clamp(mix(csky_m0.a, csky_m1.a, csky_fr) * 0.6 + max(csky_m0.r * (1.0 - csky_fr), csky_m1.r * csky_fr) * 255.0 / uActScale, 0.0, 1.0);
+}
 #if defined( USE_INSTANCING_COLOR )
 if (uMode > 0 && aHighlight < 0.5) {
   if (uMode == 1) {
@@ -309,4 +342,44 @@ vec3 transformed = vec3(position.x, position.y * csky_h / csky_sy, position.z);
 
 const FRAG_PARS = /* glsl */ `
 varying vec3 vCskyEmissive;
+varying vec3 vCskyPos;
+varying vec3 vCskyNrm;
+varying float vCskySeed;
+varying float vCskyAct;
+varying float vCskyH;
+uniform float uWindows;
+uniform float uWindowBase;
+float cskyHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+`
+
+// Procedural facades: per-building tint, darker roofs, and a grid of windows
+// on the side faces, a random subset of which are lit. Runs after
+// color_fragment so diffuseColor already holds the building's mode color.
+const FRAG_FACADE = /* glsl */ `
+{
+  vec3 n = normalize(vCskyNrm);
+  diffuseColor.rgb *= 0.9 + 0.2 * fract(vCskySeed * 7.31);
+  if (n.y > 0.5) diffuseColor.rgb *= 0.78;
+  if (uWindows > 0.5 && abs(n.y) < 0.5 && vCskyH > 1.3) {
+    float along = abs(n.x) > 0.5 ? vCskyPos.z : vCskyPos.x;
+    float up = vCskyPos.y;
+    vec2 cs = vec2(0.46, 0.6);
+    vec2 g = vec2(along, up) / cs;
+    vec2 cell = floor(g);
+    vec2 f = fract(g);
+    bool inWin = f.x > 0.24 && f.x < 0.76 && f.y > 0.2 && f.y < 0.7 && up > 0.5 && up < vCskyH - 0.3;
+    if (inWin) {
+      float r = cskyHash(cell + vec2(vCskySeed * 91.7, vCskySeed * 13.3) + floor(n.x * 2.0 + n.z * 3.0));
+      float litFrac = uWindowBase + 0.7 * vCskyAct;
+      if (r < litFrac) {
+        float warm = fract(r * 17.0);
+        vec3 light = mix(vec3(1.0, 0.78, 0.45), vec3(0.85, 0.92, 1.0), step(0.8, warm));
+        csky_windowGlow = light * (1.1 + 0.9 * fract(r * 31.0));
+        diffuseColor.rgb = light * 0.7;
+      } else {
+        diffuseColor.rgb *= 0.38;
+      }
+    }
+  }
+}
 `

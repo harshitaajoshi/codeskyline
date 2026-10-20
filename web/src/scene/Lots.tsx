@@ -12,10 +12,11 @@ const SLAB = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
  * remains as a dark footprint, so the present-day city shows the outline of
  * what used to be there.
  */
-export function Lots({ city, timeline }: { city: City; timeline: TimelineData }) {
+export function Lots({ city, timeline, fixedK }: { city: City; timeline: TimelineData; fixedK?: number }) {
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const hideGenerated = useStore((s) => s.hideGenerated)
-  const k = useStore((s) => s.k)
+  const storeK = useStore((s) => s.k)
+  const k = fixedK ?? storeK
   const material = useMemo(() => new THREE.MeshStandardMaterial({ color: '#141a28', roughness: 1 }), [])
 
   useEffect(() => {
