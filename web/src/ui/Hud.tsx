@@ -71,7 +71,7 @@ function Corner({ city, onHome }: { city: City; onHome: () => void }) {
         </span>
       </div>
       <div className="text-ivory/40 mt-1 font-mono text-[11px]">
-        {formatNum(city.stats.files)} files · {formatNum(city.stats.lines)} lines · {formatNum(city.repo.commits)} commits · {city.authors.length} authors
+        {compact(city.stats.files)} files · {compact(city.stats.lines)} lines · {compact(city.repo.commits)} commits · {city.authors.length} authors
         {city.stats.burning > 0 && <span className="text-fire/80"> · {city.stats.burning} on fire</span>}
       </div>
     </div>
@@ -637,6 +637,12 @@ function Search({ city }: { city: City }) {
       </div>
     </div>
   )
+}
+
+function compact(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}k`
+  return String(n)
 }
 
 function rgb(c: [number, number, number]) {
