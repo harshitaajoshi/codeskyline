@@ -30,6 +30,14 @@ type Change struct {
 	Crossing bool     `json:"crossing,omitempty"`
 }
 
+// Missed is a coupled file the PR left untouched.
+type Missed struct {
+	Path       string  `json:"path"`       // the file not in the PR
+	With       string  `json:"with"`       // the changed file it usually moves with
+	Support    int     `json:"support"`    // commits that changed both
+	Confidence float64 `json:"confidence"` // share of With's commits that also touched Path
+}
+
 // Report is the whole PR assessment.
 type Report struct {
 	Repo      string   `json:"repo"`
@@ -41,6 +49,9 @@ type Report struct {
 	Crossings []Change `json:"crossings"` // files mostly owned by someone else
 	BusOne    []string `json:"busOne"`    // districts touched with bus factor 1
 	Ghosts    []Change `json:"ghosts"`
+	// Missed are files this PR did not touch although they usually change
+	// together with files it did: the most actionable finding in the report.
+	Missed    []Missed `json:"missed"`
 	Reviewers []string `json:"reviewers"` // suggested from crossings
 	Risk      string   `json:"risk"`      // low, medium, high
 	Score     int      `json:"score"`     // 0..100
@@ -117,6 +128,46 @@ func Build(base *model.City, diff []repo.DiffEntry, headSHA, authorKey string) R
 		rep.BusOne = append(rep.BusOne, d)
 	}
 	sort.Strings(rep.BusOne)
+
+	// Co-change partners the PR skipped. Only strong, reliable pairs, so the
+	// warning is worth reading: at least 5 shared commits and half the time.
+	inPR := map[string]bool{}
+	for _, c := range rep.Changes {
+		inPR[c.Path] = true
+	}
+	idByPath := map[string]int{}
+	for i, f := range base.Files {
+		if !f.Removed {
+			idByPath[f.Path] = i
+		}
+	}
+	seen := map[string]bool{}
+	for _, c := range rep.Changes {
+		if c.Status == "deleted" {
+			continue
+		}
+		id, ok := idByPath[c.Path]
+		if !ok {
+			continue
+		}
+		for _, cp := range base.Couplings {
+			if cp.A != id && cp.B != id {
+				continue
+			}
+			other := base.Files[cp.B]
+			if cp.B == id {
+				other = base.Files[cp.A]
+			}
+			if other.Removed || inPR[other.Path] || seen[other.Path] || cp.Support < 5 || cp.Confidence < 0.5 {
+				continue
+			}
+			seen[other.Path] = true
+			rep.Missed = append(rep.Missed, Missed{Path: other.Path, With: c.Path, Support: cp.Support, Confidence: cp.Confidence})
+		}
+	}
+	sort.SliceStable(rep.Missed, func(i, j int) bool {
+		return rep.Missed[i].Confidence*float64(rep.Missed[i].Support) > rep.Missed[j].Confidence*float64(rep.Missed[j].Support)
+	})
 	type kv struct {
 		k string
 		v int
@@ -140,6 +191,7 @@ func Build(base *model.City, diff []repo.DiffEntry, headSHA, authorKey string) R
 	}
 	score += math.Min(25, float64(rep.Added+rep.Deleted)/40)
 	score += math.Min(15, float64(len(rep.BusOne))*8)
+	score += math.Min(15, float64(len(rep.Missed))*6)
 	score += math.Min(10, float64(len(rep.Ghosts))*5)
 	score += math.Min(10, float64(len(rep.Crossings))*3)
 	rep.Score = int(math.Min(100, math.Round(score)))
@@ -166,7 +218,7 @@ func Markdown(r Report, cityURL string) string {
 	b.WriteString("\n\n")
 
 	if len(r.Burning) > 0 {
-		b.WriteString("**🔥 Hotspots touched** — these files change often and are complex; their bug-fix history is shown:\n\n")
+		b.WriteString("**🔥 Hotspots touched**: these files change often and are complex; their bug-fix history is shown:\n\n")
 		b.WriteString("| file | heat | commits | bug fixes | owners |\n|---|---|---|---|---|\n")
 		for i, c := range r.Burning {
 			if i == 10 {
@@ -180,11 +232,23 @@ func Markdown(r Report, cityURL string) string {
 		b.WriteString("✅ No hotspot files touched.\n\n")
 	}
 
+	if len(r.Missed) > 0 {
+		b.WriteString("**🔗 Possibly missed**: files not in this PR that usually change together with files that are:\n\n")
+		b.WriteString("| not changed | usually changes with | how often |\n|---|---|---|\n")
+		for i, m := range r.Missed {
+			if i == 8 {
+				fmt.Fprintf(&b, "| …and %d more | | |\n", len(r.Missed)-8)
+				break
+			}
+			fmt.Fprintf(&b, "| `%s` | `%s` | %d of its commits, %d%% |\n", m.Path, m.With, m.Support, int(math.Round(m.Confidence*100)))
+		}
+		b.WriteString("\n")
+	}
 	if len(r.BusOne) > 0 {
-		fmt.Fprintf(&b, "**🚌 Bus factor 1** in %s — one person holds the knowledge here; consider a second reviewer.\n\n", codeList(r.BusOne))
+		fmt.Fprintf(&b, "**🚌 Bus factor 1** in %s: one person holds the knowledge here; consider a second reviewer.\n\n", codeList(r.BusOne))
 	}
 	if len(r.Crossings) > 0 {
-		b.WriteString("**🗺️ Ownership crossings** — files mostly written by someone else")
+		b.WriteString("**🗺️ Ownership crossings**: files mostly written by someone else")
 		if len(r.Reviewers) > 0 {
 			fmt.Fprintf(&b, "; suggested reviewers: %s", strings.Join(r.Reviewers, ", "))
 		}
@@ -203,7 +267,7 @@ func Markdown(r Report, cityURL string) string {
 		for _, c := range r.Ghosts {
 			ps = append(ps, c.Path)
 		}
-		fmt.Fprintf(&b, "**👻 Ghost town** — nobody active still owns %s. Tread carefully and add tests.\n\n", codeList(firstN(ps, 5)))
+		fmt.Fprintf(&b, "**👻 Ghost town**: nobody active still owns %s. Tread carefully and add tests.\n\n", codeList(firstN(ps, 5)))
 	}
 	b.WriteString("<sub>Hotspots = recent churn × complexity at the merge base (bug-fix counts shown for context). Generated by [CodeSkyline](https://github.com/harshitaajoshi/codeskyline).</sub>\n")
 	return b.String()
@@ -218,7 +282,7 @@ func flames(level int) string {
 	case 1:
 		return "🔥 smoke"
 	}
-	return "—"
+	return "none"
 }
 
 func statusWord(s byte) string {
@@ -260,7 +324,7 @@ func sameAuthor(a model.Author, keys string) bool {
 
 func firstN(s []string, n int) []string {
 	if len(s) == 0 {
-		return []string{"—"}
+		return []string{"none"}
 	}
 	if len(s) > n {
 		return s[:n]

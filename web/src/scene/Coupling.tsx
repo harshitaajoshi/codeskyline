@@ -1,7 +1,7 @@
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
-import { Line } from '@react-three/drei'
+import { Billboard, Line, Text } from '@react-three/drei'
 import { useStore } from '../store'
 
 type Line2 = React.ComponentRef<typeof Line>
@@ -56,15 +56,26 @@ export function Coupling({ city, timeline }: { city: City; timeline: TimelineDat
           const mt = 1 - t
           pts.push(new THREE.Vector3(mt * mt * fx + 2 * mt * t * ((fx + tx) / 2) + t * t * tx, mt * mt * fh + 2 * mt * t * lift + t * t * th, mt * mt * fz + 2 * mt * t * ((fz + tz) / 2) + t * t * tz))
         }
-        return { key: `${c.a}-${c.b}`, pts, confidence: c.confidence }
+        const name = to.path.slice(to.path.lastIndexOf('/') + 1)
+        return { key: `${c.a}-${c.b}`, pts, confidence: c.confidence, support: c.support, name, dist }
       })
   }, [city, timeline, focus, hideGenerated, k, heightScale])
 
   if (!show || bridges.length === 0) return null
   return (
     <group>
-      {bridges.map((b) => (
-        <Bridge key={b.key} points={b.pts} confidence={b.confidence} strong={strong} />
+      {bridges.map((b, i) => (
+        <group key={b.key}>
+          <Bridge points={b.pts} confidence={b.confidence} strong={strong} />
+          {/* Say what the bridge means, on the bridge: the partner, how often, how reliably. */}
+          {strong && i < 8 && b.dist > 3 && (
+            <Billboard position={b.pts[Math.floor(SEGMENTS * 0.62)]!.clone().add(new THREE.Vector3(0, 0.9, 0))} follow>
+              <Text fontSize={0.95} color="#ffd9a8" anchorX="center" anchorY="bottom" outlineWidth={0.06} outlineColor="#0b0f1a" renderOrder={5}>
+                {`${b.name}  ${b.support}×  ${Math.round(b.confidence * 100)}%`}
+              </Text>
+            </Billboard>
+          )}
+        </group>
       ))}
     </group>
   )

@@ -3,12 +3,15 @@
 On every pull request, posts a sticky comment with a risk report built from
 your repository's own history:
 
-- **🔥 Hotspots touched** — files that change often, are complex, and keep
-  needing bug fixes (churn × complexity × bug-fix history at the merge base)
-- **🚌 Bus factor 1** — districts where one person holds all the knowledge
-- **🗺️ Ownership crossings** — files mostly written by someone else, with
+- **🔥 Hotspots touched**: files that change often and are complex, with
+  their bug-fix history (churn × complexity at the merge base)
+- **🔗 Possibly missed**: files this PR did not touch although they usually
+  change together with files it did (mined from co-change history; nothing
+  imports them, so static analysis cannot see it)
+- **🚌 Bus factor 1**: districts where one person holds all the knowledge
+- **🗺️ Ownership crossings**: files mostly written by someone else, with
   suggested reviewers
-- **👻 Ghost town** — files nobody active still owns
+- **👻 Ghost town**: files nobody active still owns
 
 It runs entirely inside your workflow: no tokens leave the runner, nothing is
 uploaded. The same report is written to the job summary, so it works on fork

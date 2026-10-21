@@ -481,9 +481,14 @@ function CoupledWith({ city, id }: { city: City; id: number }) {
   const select = useStore((s) => s.select)
   const partners = useMemo(() => partnersOf(city, id).slice(0, 6), [city, id])
   if (partners.length === 0) return null
+  const top = partners[0]!
   return (
     <div className="hairline border-t px-4 py-3">
-      <div className="label mb-2">changes together with</div>
+      <div className="label mb-1">changes together with</div>
+      <p className="text-ivory/50 mb-2 text-[11.5px] leading-snug">
+        Edit this file and {Math.round(top.confidence * 100)}% of the time {city.files[top.id]!.path.slice(city.files[top.id]!.path.lastIndexOf('/') + 1)} changes in the
+        same commit. Nothing imports it; the history is the only thing that knows. Expect to touch these too.
+      </p>
       <ul className="space-y-1">
         {partners.map((p) => {
           const f = city.files[p.id]!

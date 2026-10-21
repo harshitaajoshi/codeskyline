@@ -101,9 +101,9 @@ function buildInsights(city: City): Insight[] {
     out.push({
       key: 'coupling',
       Icon: Glyph.churn,
-      title: `${shortName(a.path)} and ${shortName(b.path)} always change together`,
-      detail: `${c0.support} shared commits, ${Math.round(c0.confidence * 100)}% of the time, with no import between them. ${city.couplings.length} such pairs in total.`,
-      action: 'show the bridges',
+      title: `Change ${shortName(a.path)} and you will probably change ${shortName(b.path)}`,
+      detail: `They were edited in the same commit ${c0.support} times, ${Math.round(c0.confidence * 100)}% of the time, with no import between them. ${city.couplings.length} hidden dependencies like this; a PR that touches one side without the other gets flagged.`,
+      action: 'show what it drags along',
       run: () => {
         s().setShowCoupling(true)
         s().select(c0.a, true)
