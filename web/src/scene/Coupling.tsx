@@ -1,90 +1,98 @@
-import { useEffect, useMemo } from 'react'
+import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
+import { useFrame } from '@react-three/fiber'
+import { Line } from '@react-three/drei'
 import { useStore } from '../store'
+
+type Line2 = React.ComponentRef<typeof Line>
 import { height } from '../city/scales'
 import { linesAt, type TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
 
-const SEGMENTS = 14
-const AMBER = new THREE.Color('#f2b36b')
+const SEGMENTS = 18
 
 /**
- * Temporal coupling as bridges: an arc between the rooftops of two files that
- * keep changing in the same commits. With nothing selected the strongest
- * links glow faintly; select a building and only its links show, bright, so
- * you see its blast radius.
+ * Temporal coupling as bridges from the focused building to the files that
+ * keep changing in the same commits. Nothing is drawn until you hover or
+ * select a building; then its bridges appear as glowing dashed ribbons that
+ * flow away from it, hugging the rooftops.
  */
 export function Coupling({ city, timeline }: { city: City; timeline: TimelineData }) {
   const show = useStore((s) => s.showCoupling)
   const selected = useStore((s) => s.selected)
+  const hovered = useStore((s) => s.hovered)
   const hideGenerated = useStore((s) => s.hideGenerated)
   const k = useStore((s) => s.k)
   const heightScale = useStore((s) => s.heightScale)
 
-  const links = useMemo(() => {
-    const all = city.couplings.filter((c) => {
-      const a = city.files[c.a]!
-      const b = city.files[c.b]!
-      if (hideGenerated && (a.generated || a.vendored || b.generated || b.vendored)) return false
-      return true
-    })
-    if (selected != null) return all.filter((c) => c.a === selected || c.b === selected)
-    return all.slice(0, 40)
-  }, [city, selected, hideGenerated])
+  const focus = selected ?? hovered
+  const strong = selected != null
 
-  const geometry = useMemo(() => {
-    const g = new THREE.BufferGeometry()
-    const n = links.length * SEGMENTS * 2
-    const pos = new Float32Array(Math.max(1, n) * 3)
-    const col = new Float32Array(Math.max(1, n) * 3)
-    const p = new THREE.Vector3()
-    let o = 0
-    const focused = selected != null
-    links.forEach((c) => {
-      const a = city.files[c.a]!
-      const b = city.files[c.b]!
-      const ax = a.x + a.w / 2
-      const az = a.z + a.d / 2
-      const bx = b.x + b.w / 2
-      const bz = b.z + b.d / 2
-      const ah = height(linesAt(timeline, c.a, k), heightScale, city.stats.maxLines)
-      const bh = height(linesAt(timeline, c.b, k), heightScale, city.stats.maxLines)
-      if (ah <= 0.61 && bh <= 0.61) return
-      const dist = Math.hypot(bx - ax, bz - az)
-      const lift = Math.max(ah, bh) + 2 + dist * 0.22
-      // Brightness: confidence drives intensity; bloom catches the focused set.
-      const glow = focused ? 1.3 + c.confidence * 1.2 : 0.4 + c.confidence * 0.6
-      for (let s = 0; s < SEGMENTS; s++) {
-        for (const t of [s / SEGMENTS, (s + 1) / SEGMENTS]) {
+  const bridges = useMemo(() => {
+    if (focus == null) return []
+    return city.couplings
+      .filter((c) => c.a === focus || c.b === focus)
+      .filter((c) => {
+        const a = city.files[c.a]!
+        const b = city.files[c.b]!
+        return !(hideGenerated && (a.generated || a.vendored || b.generated || b.vendored))
+      })
+      .slice(0, 24)
+      .map((c) => {
+        const from = city.files[focus]!
+        const to = city.files[c.a === focus ? c.b : c.a]!
+        const fh = height(linesAt(timeline, from.id, k), heightScale, city.stats.maxLines)
+        const th = height(linesAt(timeline, to.id, k), heightScale, city.stats.maxLines)
+        const fx = from.x + from.w / 2
+        const fz = from.z + from.d / 2
+        const tx = to.x + to.w / 2
+        const tz = to.z + to.d / 2
+        const dist = Math.hypot(tx - fx, tz - fz)
+        // Low arc: clears the taller rooftop by a little, rises gently with distance.
+        const lift = Math.max(fh, th) + 1.2 + Math.min(10, dist * 0.08)
+        const pts: THREE.Vector3[] = []
+        for (let s = 0; s <= SEGMENTS; s++) {
+          const t = s / SEGMENTS
           const mt = 1 - t
-          // Quadratic bezier through a raised midpoint.
-          p.set(mt * mt * ax + 2 * mt * t * ((ax + bx) / 2) + t * t * bx, mt * mt * ah + 2 * mt * t * lift + t * t * bh, mt * mt * az + 2 * mt * t * ((az + bz) / 2) + t * t * bz)
-          pos[o * 3] = p.x
-          pos[o * 3 + 1] = p.y
-          pos[o * 3 + 2] = p.z
-          // Fade toward the ends so arcs read as bridges, not wires.
-          const fade = 0.55 + 0.45 * Math.sin(Math.PI * t)
-          col[o * 3] = AMBER.r * glow * fade
-          col[o * 3 + 1] = AMBER.g * glow * fade
-          col[o * 3 + 2] = AMBER.b * glow * fade
-          o++
+          pts.push(new THREE.Vector3(mt * mt * fx + 2 * mt * t * ((fx + tx) / 2) + t * t * tx, mt * mt * fh + 2 * mt * t * lift + t * t * th, mt * mt * fz + 2 * mt * t * ((fz + tz) / 2) + t * t * tz))
         }
-      }
-    })
-    g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-    g.setAttribute('color', new THREE.BufferAttribute(col, 3))
-    g.setDrawRange(0, o)
-    return g
-  }, [links, city, timeline, k, heightScale, selected])
-  useEffect(() => () => geometry.dispose(), [geometry])
+        return { key: `${c.a}-${c.b}`, pts, confidence: c.confidence }
+      })
+  }, [city, timeline, focus, hideGenerated, k, heightScale])
 
-  const material = useMemo(
-    () => new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, toneMapped: false, depthWrite: false, blending: THREE.AdditiveBlending }),
-    [],
+  if (!show || bridges.length === 0) return null
+  return (
+    <group>
+      {bridges.map((b) => (
+        <Bridge key={b.key} points={b.pts} confidence={b.confidence} strong={strong} />
+      ))}
+    </group>
   )
+}
 
-  if (!show || links.length === 0) return null
-  return <lineSegments geometry={geometry} material={material} frustumCulled={false} renderOrder={3} />
+function Bridge({ points, confidence, strong }: { points: THREE.Vector3[]; confidence: number; strong: boolean }) {
+  const ref = useRef<Line2>(null)
+  useFrame((_, dt) => {
+    const m = ref.current?.material as THREE.ShaderMaterial & { dashOffset: number } | undefined
+    if (m) m.dashOffset -= dt * 6 // flow away from the focused building
+  })
+  const color = strong ? '#ffc98a' : '#b58a55'
+  return (
+    <Line
+      ref={ref}
+      points={points}
+      color={color}
+      lineWidth={strong ? 1.6 + confidence * 2.2 : 1.2}
+      dashed
+      dashSize={1.4}
+      gapSize={0.9}
+      transparent
+      opacity={strong ? 0.95 : 0.55}
+      toneMapped={false}
+      depthWrite={false}
+      renderOrder={3}
+    />
+  )
 }
 
 /** Partner ids for a selected file, strongest first. */

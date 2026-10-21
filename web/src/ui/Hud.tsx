@@ -179,9 +179,9 @@ function Lens({ city }: { city: City }) {
         </label>
       </div>
       {city.couplings.length > 0 && (
-        <label className="hairline text-ivory/50 flex cursor-pointer items-center justify-between border-t px-4 py-2.5 font-mono text-[11px]" title="files that keep changing in the same commits, drawn as bridges">
+        <label className="hairline text-ivory/50 flex cursor-pointer items-center justify-between border-t px-4 py-2.5 font-mono text-[11px]" title="hover or select a building to see the files that change with it">
           <span>
-            coupling bridges <span className="text-ivory/30">· {city.couplings.length}</span>
+            bridges on hover <span className="text-ivory/30">· {city.couplings.length} pairs</span>
           </span>
           <input type="checkbox" className="accent-amber" checked={showCoupling} onChange={(e) => setShowCoupling(e.target.checked)} />
         </label>
