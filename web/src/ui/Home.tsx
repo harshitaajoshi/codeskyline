@@ -193,7 +193,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
                 <div className="text-ivory/50 mt-1 truncate">{job.error ?? job.detail}</div>
                 {job.log.length > 1 && (
                   <ul className="text-ivory/35 mt-2 space-y-0.5">
-                    {job.log.slice(-5).map((l, i) => (
+                    {lastPerStage(job.log).slice(-5).map((l, i) => (
                       <li key={i} className="truncate">
                         {l.stage.padEnd(8)} {l.detail}
                       </li>
@@ -255,6 +255,17 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
       </div>
     </div>
   )
+}
+
+/** One line per stage, the most recent, so a long clone does not scroll the log with percentages. */
+function lastPerStage<T extends { stage: string }>(log: T[]): T[] {
+  const out: T[] = []
+  for (const l of log) {
+    const prev = out[out.length - 1]
+    if (prev && prev.stage === l.stage) out[out.length - 1] = l
+    else out.push(l)
+  }
+  return out
 }
 
 /* ---------------------------------------------------------------------- */

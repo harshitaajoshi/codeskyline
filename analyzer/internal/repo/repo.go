@@ -49,17 +49,95 @@ func ParseGitHubURL(url string) (owner, name string, ok bool) {
 // Clone makes a bare, single-branch clone of url into dest. Bare clones never
 // write a working tree, so symlinks and hooks in the repository are inert.
 func Clone(ctx context.Context, url, dest string) (*Repo, error) {
-	cmd := exec.CommandContext(ctx, "git",
+	return CloneProgress(ctx, url, dest, nil)
+}
+
+// CloneProgress is Clone with git's own transfer progress ("receiving 43%,
+// 120 MB at 1.2 MB/s") reported to onProgress, throttled to about one line
+// per two seconds so a slow clone never looks like a hung one.
+func CloneProgress(ctx context.Context, url, dest string, onProgress func(string)) (*Repo, error) {
+	args := []string{
 		"-c", "protocol.file.allow=never",
 		"-c", "protocol.ext.allow=never",
-		"clone", "--bare", "--single-branch", "--no-tags", "--quiet", url, dest)
+		"clone", "--bare", "--single-branch", "--no-tags",
+	}
+	if onProgress != nil {
+		args = append(args, "--progress")
+	} else {
+		args = append(args, "--quiet")
+	}
+	cmd := exec.CommandContext(ctx, "git", append(args, url, dest)...)
 	cmd.Env = append(cmd.Environ(), "GIT_TERMINAL_PROMPT=0")
 	var stderr bytes.Buffer
-	cmd.Stderr = &stderr
-	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("repo: clone failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+	if onProgress == nil {
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			return nil, fmt.Errorf("repo: clone failed: %w: %s", err, strings.TrimSpace(stderr.String()))
+		}
+		return &Repo{Dir: dest}, nil
+	}
+	pipe, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	if err := cmd.Start(); err != nil {
+		return nil, fmt.Errorf("repo: clone failed: %w", err)
+	}
+	var last time.Time
+	var lastLine string
+	sc := bufio.NewScanner(pipe)
+	sc.Buffer(make([]byte, 64*1024), 1024*1024)
+	sc.Split(scanProgress)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if line == "" {
+			continue
+		}
+		lastLine = line
+		if msg, ok := progressMessage(line); ok && time.Since(last) >= 2*time.Second {
+			last = time.Now()
+			onProgress(msg)
+		}
+	}
+	if err := cmd.Wait(); err != nil {
+		return nil, fmt.Errorf("repo: clone failed: %w: %s", err, lastLine)
 	}
 	return &Repo{Dir: dest}, nil
+}
+
+// scanProgress splits on \r as well as \n: git redraws progress in place.
+func scanProgress(data []byte, atEOF bool) (int, []byte, error) {
+	if i := bytes.IndexAny(data, "\r\n"); i >= 0 {
+		return i + 1, data[:i], nil
+	}
+	if atEOF && len(data) > 0 {
+		return len(data), data, nil
+	}
+	return 0, nil, nil
+}
+
+var (
+	reReceiving = regexp.MustCompile(`^Receiving objects:\s+(\d+)%.*?,\s*([\d.]+\s*[KMG]iB)(?:\s*\|\s*([\d.]+\s*[KMG]iB/s))?`)
+	reCounting  = regexp.MustCompile(`^remote: (Counting|Compressing|Enumerating) objects:\s+(\d+)%`)
+	reDeltas    = regexp.MustCompile(`^Resolving deltas:\s+(\d+)%`)
+)
+
+// progressMessage turns one git progress line into a short human phrase.
+func progressMessage(line string) (string, bool) {
+	if m := reReceiving.FindStringSubmatch(line); m != nil {
+		msg := fmt.Sprintf("receiving %s%%, %s", m[1], strings.ReplaceAll(m[2], "iB", "B"))
+		if m[3] != "" {
+			msg += " at " + strings.ReplaceAll(m[3], "iB", "B")
+		}
+		return msg, true
+	}
+	if m := reCounting.FindStringSubmatch(line); m != nil {
+		return fmt.Sprintf("github is %s objects, %s%%", strings.ToLower(m[1]), m[2]), true
+	}
+	if m := reDeltas.FindStringSubmatch(line); m != nil {
+		return fmt.Sprintf("resolving deltas %s%%", m[1]), true
+	}
+	return "", false
 }
 
 // Head returns the HEAD commit hash.

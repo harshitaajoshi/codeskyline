@@ -131,7 +131,7 @@ func (s *server) analyze(w http.ResponseWriter, r *http.Request) {
 
 	url := "https://github.com/" + owner + "/" + name
 	progress("clone", url)
-	rp, err := repo.Clone(ctx, url+".git", cloneDir)
+	rp, err := repo.CloneProgress(ctx, url+".git", cloneDir, func(msg string) { progress("clone", msg) })
 	if err != nil {
 		fail(err)
 		return
