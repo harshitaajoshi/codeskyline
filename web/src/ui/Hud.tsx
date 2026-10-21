@@ -9,6 +9,7 @@ import { Tour, shouldShowTour } from './Tour'
 import { Glyph, MODE_GLYPH } from './glyphs'
 import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from '../scene/Coupling'
+import { Insights } from './Insights'
 
 export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const walking = useStore((s) => s.walking)
@@ -41,6 +42,7 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
       <Lens city={city} />
       <Tooltip city={city} />
       <SelectedTag city={city} />
+      <Insights city={city} />
       <Inspector city={city} />
       <Search city={city} />
       <Timeline city={city} />

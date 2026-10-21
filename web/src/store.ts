@@ -31,6 +31,8 @@ interface State {
 
   showCoupling: boolean
   setShowCoupling: (v: boolean) => void
+  insightsOpen: boolean
+  setInsightsOpen: (v: boolean) => void
   /** Owners lens: author whose departure is being simulated. */
   simulateAuthor: number | null
   setSimulateAuthor: (a: number | null) => void
@@ -78,6 +80,8 @@ export const useStore = create<State>((set, get) => ({
   setMarkerScreen: (markerScreen) => set({ markerScreen }),
   showCoupling: true,
   setShowCoupling: (showCoupling) => set({ showCoupling }),
+  insightsOpen: true,
+  setInsightsOpen: (insightsOpen) => set({ insightsOpen }),
   simulateAuthor: null,
   setSimulateAuthor: (simulateAuthor) => set({ simulateAuthor }),
   pinnedEvent: null,

@@ -29,7 +29,7 @@ export function Coupling({ city, timeline }: { city: City; timeline: TimelineDat
       return true
     })
     if (selected != null) return all.filter((c) => c.a === selected || c.b === selected)
-    return all.slice(0, 30)
+    return all.slice(0, 40)
   }, [city, selected, hideGenerated])
 
   const geometry = useMemo(() => {
@@ -53,7 +53,7 @@ export function Coupling({ city, timeline }: { city: City; timeline: TimelineDat
       const dist = Math.hypot(bx - ax, bz - az)
       const lift = Math.max(ah, bh) + 2 + dist * 0.22
       // Brightness: confidence drives intensity; bloom catches the focused set.
-      const glow = focused ? 1.3 + c.confidence * 1.2 : 0.18 + c.confidence * 0.3
+      const glow = focused ? 1.3 + c.confidence * 1.2 : 0.4 + c.confidence * 0.6
       for (let s = 0; s < SEGMENTS; s++) {
         for (const t of [s / SEGMENTS, (s + 1) / SEGMENTS]) {
           const mt = 1 - t

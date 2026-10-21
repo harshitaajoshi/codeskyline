@@ -25,22 +25,28 @@ const STEPS: Step[] = [
     mode: 'hotspots',
   },
   {
+    title: 'The amber bridges are hidden dependencies',
+    body: 'Two buildings are bridged when they keep changing in the same commits, even if nothing imports one from the other. Click a building to see everything it drags along.',
+    place: 'left-1/2 top-24 -translate-x-1/2',
+    mode: 'churn',
+  },
+  {
     title: 'Change the lens',
-    body: 'Recolor the whole city by churn, by who maintains each file, by language, or by age. Each lens explains itself.',
+    body: 'Recolor the whole city by churn, by who maintains each file, by language, or by age. In Owners, click a person to simulate them leaving and watch what goes dark.',
     place: 'left-72 top-28',
     mode: 'owners',
   },
   {
     title: 'Travel through time',
-    body: 'Press space, or drag the slider, to watch the city grow commit by commit: buildings rise, get demolished, and catch fire.',
+    body: 'Press space, or drag the slider, to watch the city grow commit by commit. The diamonds on the track are the moments that shaped it: rewrites, demolitions, people arriving and leaving.',
     place: 'left-1/2 bottom-28 -translate-x-1/2',
     mode: 'churn',
     play: true,
   },
   {
-    title: 'Get around',
-    body: 'Drag to orbit, scroll to zoom. ⌘K jumps to a file. Try Walk to stroll the streets in first person (WASD, Esc to leave).',
-    place: 'left-1/2 top-24 -translate-x-1/2',
+    title: 'Start from the insights',
+    body: 'The panel on the right says what the history found, in plain sentences. Each one is a button that shows it. Drag to orbit, scroll to zoom, ⌘K to find a file, Walk to stroll the streets.',
+    place: 'right-[22.5rem] top-24',
   },
 ]
 
