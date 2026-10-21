@@ -9,23 +9,23 @@ commit history. Scrub a timeline to watch the city grow over years of commits.
 
 ![expressjs/express rendered as a city, colored by churn, with hotspot buildings on fire](docs/images/express-churn.png)
 
-> Status: working end to end locally — analyzer, viewer, time travel, ownership
+> Status: working end to end locally: analyzer, viewer, time travel, ownership
 > views, hosted service (Cloudflare) and the PR Action. Public deployment is next.
 
 ## What makes it different
 
-- **Time travel** — a slider replays the whole history on the GPU: buildings rise,
+- **Time travel.** a slider replays the whole history on the GPU: buildings rise,
   get demolished and catch fire as the commits roll by.
-- **Ownership view** — buildings colored by who really maintains them (knowledge
+- **Ownership view.** buildings colored by who really maintains them (knowledge
   decays with a one-year half-life), per-district bus factor, and "ghost town"
   detection for code nobody active still owns.
-- **Hotspots that mean something** — recent churn × complexity (after
+- **Hotspots that mean something.** recent churn × complexity (after
   Tornhill's *Your Code as a Crime Scene*), [validated on 12 real repos](docs/benchmarks.md):
   the top-20 hotspots catch 70% of the files that get bug fixes in the following
   year, against a 21% base rate.
-- **PR mode** — a GitHub Action posts a city diff on every pull request: which
+- **PR mode.** a GitHub Action posts a city diff on every pull request: which
   buildings changed, and whether you just touched something on fire.
-- **Shareable** — every view is a URL; every repo gets a README badge that is a
+- **Shareable.** every view is a URL; every repo gets a README badge that is a
   tiny silhouette of its own skyline.
 
 ## PR mode (GitHub Action)
@@ -52,13 +52,16 @@ links, and embed a skyline badge:
 ![CodeSkyline](https://<your-worker>/badge/owner/repo.svg)
 ```
 
+The badge takes `?theme=light`, `?label=<text>` and `?bare=1` (the silhouette
+alone, for embedding in your own layout). Hotspot columns are drawn in orange.
+
 See [`edge/README.md`](edge/README.md) for the one-time deploy steps and the
 cost guardrails (monthly job budget, repo size cap, rate limits).
 
 ## Repository layout
 
 ```
-analyzer/   Go — the analysis engine (CLI, hosted worker and GitHub Action share it)
+analyzer/   Go: the analysis engine (CLI, hosted worker and GitHub Action share it)
 web/        React + Three.js viewer
 edge/       Cloudflare Worker: API, job queue, short links, badges
 action/     GitHub Action for PR mode
@@ -77,7 +80,7 @@ go build -o bin/csky ./cmd/csky
 
 Or analyze a local clone: `./bin/csky analyze ~/src/my-project`.
 
-The analyzer never checks out a working tree — it reads history with `git log`
+The analyzer never checks out a working tree; it reads history with `git log`
 and file contents with `git cat-file`, so untrusted repositories cannot run code
 or plant symlinks on the machine doing the analysis.
 
@@ -85,7 +88,7 @@ or plant symlinks on the machine doing the analysis.
 
 ```sh
 pnpm install
-pnpm dev:web        # http://localhost:5173 — loads the bundled express sample
+pnpm dev:web        # http://localhost:5173, loads the bundled express sample
 ```
 
 Drop any `*.city.json` produced by `csky` onto the page to render it. Modes:
