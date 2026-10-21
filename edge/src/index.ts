@@ -81,7 +81,8 @@ app.get('/api/city/:owner/:name', async (c) => {
     .bind(owner, name)
     .first<{ sha: string }>()
   if (!row) return c.json({ error: 'not analyzed yet' }, 404)
-  return c.redirect(`/api/city/${owner}/${name}/${row.sha}`, 302)
+  const fmt = c.req.query('fmt')
+  return c.redirect(`/api/city/${owner}/${name}/${row.sha}${fmt ? `?fmt=${encodeURIComponent(fmt)}` : ''}`, 302)
 })
 
 app.get('/api/city/:owner/:name/:sha', async (c) => {

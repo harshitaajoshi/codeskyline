@@ -48,8 +48,15 @@ export async function requestAnalysis(url: string): Promise<AnalyzeResponse> {
   return json<AnalyzeResponse>(res)
 }
 
+/**
+ * Cities are served immutable per commit, so the browser caches them for a
+ * year. The format tag in the query keeps a city built by an older analyzer
+ * from being served for a newer viewer.
+ */
+export const CITY_FORMAT = 'v3'
+
 export async function fetchCity(owner: string, name: string, sha?: string): Promise<City> {
-  const res = await fetch(sha ? `/api/city/${owner}/${name}/${sha}` : `/api/city/${owner}/${name}`)
+  const res = await fetch(sha ? `/api/city/${owner}/${name}/${sha}?fmt=${CITY_FORMAT}` : `/api/city/${owner}/${name}?fmt=${CITY_FORMAT}`)
   if (!res.ok) throw new Error(res.status === 404 ? 'not analyzed yet' : `could not load city (${res.status})`)
   return parseCity(await res.text())
 }
