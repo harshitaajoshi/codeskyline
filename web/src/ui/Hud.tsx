@@ -4,21 +4,18 @@ import { MODES, FIRE, ownerPalette, type ColorMode } from '../city/colors'
 import { formatISO, formatNum, githubFileUrl } from '../city/scales'
 import type { City } from '../city/types'
 import { createShare } from '../city/api'
-import { StoryCaption, Timeline } from './Timeline'
+import { Timeline } from './Timeline'
 import { Tour, shouldShowTour } from './Tour'
-import { Glyph } from './glyphs'
+import { Glyph, MODE_GLYPH } from './glyphs'
 import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from '../scene/Coupling'
-import { InsightStrip } from './Insights'
+import { Insights } from './Insights'
 
-/**
- * The HUD is type set directly on the city: corners and edges, hairlines
- * for structure, scrims for legibility. Nothing is boxed.
- */
 export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const walking = useStore((s) => s.walking)
   const setTourStep = useStore((s) => s.setTourStep)
 
+  // Space toggles playback unless the user is typing or walking.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'INPUT') return
@@ -31,6 +28,7 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // First visit: the guided tour, after the fly-in has settled.
   useEffect(() => {
     if (!shouldShowTour() || new URLSearchParams(location.search).get('tour') === '0') return
     const t = setTimeout(() => setTourStep(0), 1800)
@@ -40,146 +38,150 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
   if (walking) return <WalkHud city={city} />
   return (
     <div className="text-ivory">
-      <div className="scrim-top pointer-events-none absolute inset-x-0 top-0 h-40" />
-      <div className="scrim-bottom pointer-events-none absolute inset-x-0 bottom-0 h-44" />
-      <Corner city={city} onHome={onHome} />
-      <InsightStrip city={city} />
+      <TopBar city={city} onOpenFile={onOpenFile} onHome={onHome} />
       <Lens city={city} />
-      <Actions city={city} onOpenFile={onOpenFile} />
       <Tooltip city={city} />
       <SelectedTag city={city} />
+      <Insights city={city} />
       <Inspector city={city} />
-      <Legend city={city} />
-      <StoryCaption city={city} />
-      <Timeline city={city} />
       <Search city={city} />
+      <Timeline city={city} />
       <Tour city={city} />
     </div>
   )
 }
 
-/** Top-left: wordmark, repo, numbers. */
-function Corner({ city, onHome }: { city: City; onHome: () => void }) {
-  const [owner, ...rest] = city.repo.name.split('/')
+function TopBar({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
+  const setWalking = useStore((s) => s.setWalking)
+  const setTourStep = useStore((s) => s.setTourStep)
   return (
-    <div className="rise txt pointer-events-none absolute top-6 left-6">
-      <button className="pointer-events-auto text-[15px] font-semibold tracking-[-0.03em] hover:opacity-80" onClick={onHome}>
-        Code<span className="text-amber">Skyline</span>
-      </button>
-      <div className="pointer-events-auto mt-2 font-mono text-[12.5px]">
-        <span className="text-ivory/45">{owner}/</span>
-        {rest.join('/') || city.repo.name}
+    <div className="rise pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 p-4">
+      <div className="glass glass-pill pointer-events-auto flex h-10 items-center pr-4 pl-4">
+        <button className="text-[15px] leading-none font-semibold tracking-[-0.03em] hover:opacity-80" onClick={onHome} title="home">
+          Code<span className="text-amber">Skyline</span>
+        </button>
+        <span className="hairline mx-3 h-4 border-l" />
+        <span className="font-mono text-[12.5px]">
+          <span className="text-ivory/50">{city.repo.name.split('/')[0]}/</span>
+          {city.repo.name.split('/').slice(1).join('/') || city.repo.name}
+        </span>
         {city.repo.url && (
-          <a className="text-ivory/40 hover:text-ivory ml-1.5 inline-block align-middle transition" href={city.repo.url} target="_blank" rel="noreferrer" title="open on GitHub">
-            <Glyph.external width={11} height={11} />
+          <a className="text-ivory/40 hover:text-ivory ml-2 transition" href={city.repo.url} target="_blank" rel="noreferrer" title="open on GitHub">
+            <Glyph.external width={12} height={12} />
           </a>
         )}
       </div>
-      <div className="text-ivory/40 mt-1 font-mono text-[10.5px] tracking-wide">
-        {compact(city.stats.files)} files · {compact(city.stats.lines)} lines · {compact(city.repo.commits)} commits · {city.authors.length} authors
-        {city.stats.burning > 0 && <span className="text-fire/80"> · {city.stats.burning} on fire</span>}
+
+      <div className="text-ivory/55 pointer-events-auto hidden items-center gap-4 font-mono text-[11.5px] md:flex">
+        <Stat v={formatNum(city.stats.files)} l="files" />
+        <Stat v={formatNum(city.stats.lines)} l="lines" />
+        <Stat v={formatNum(city.repo.commits)} l="commits" />
+        <Stat v={String(city.authors.length)} l="authors" />
+        {city.stats.burning > 0 && (
+          <span className="text-fire/90 flex items-center gap-1">
+            <Glyph.hotspots width={12} height={12} /> {city.stats.burning} on fire
+          </span>
+        )}
+      </div>
+
+      <div className="glass glass-pill pointer-events-auto ml-auto flex h-10 items-center p-1">
+        <button className="btn rounded-full" onClick={() => setWalking(true)} title="first-person walk · WASD, Esc to leave">
+          <Glyph.walk /> Walk
+        </button>
+        <span className="hairline h-4 border-l" />
+        <ShareButton city={city} />
+        <span className="hairline h-4 border-l" />
+        <button className="btn rounded-full" onClick={onOpenFile} title="open a .city.json">
+          <Glyph.open />
+        </button>
+        <button className="btn rounded-full" onClick={() => setTourStep(0)} title="replay the tour">
+          <Glyph.help />
+        </button>
       </div>
     </div>
   )
 }
 
-/** Top-right: the lenses as a list. The active one carries an amber dash. */
+function Stat({ v, l }: { v: string; l: string }) {
+  return (
+    <span>
+      <span className="text-ivory/85">{v}</span> {l}
+    </span>
+  )
+}
+
+/** Left panel: pick how the city is colored, with the legend for the active lens. */
 function Lens({ city }: { city: City }) {
   const mode = useStore((s) => s.mode)
   const setMode = useStore((s) => s.setMode)
-  const selected = useStore((s) => s.selected)
-  const [hint, setHint] = useState<ColorMode | null>(null)
-  const modes = MODES.filter((m) => m.id !== 'diff' || city.diff)
-  const hinted = modes.find((m) => m.id === hint)
-  if (selected != null) return null // the inspector takes this edge
-  return (
-    <div className="rise txt pointer-events-none absolute top-6 right-6 text-right" style={{ animationDelay: '0.1s' }}>
-      <div className="label mb-2">lens</div>
-      <ul className="pointer-events-auto" onMouseLeave={() => setHint(null)}>
-        {modes.map((m) => {
-          const active = mode === m.id
-          return (
-            <li key={m.id}>
-              <button
-                onClick={() => setMode(m.id)}
-                onMouseEnter={() => setHint(m.id)}
-                className={`group flex w-full items-center justify-end gap-2 py-[3px] font-mono text-[12px] tracking-[0.08em] uppercase transition-colors ${active ? 'text-amber' : 'text-ivory/55 hover:text-ivory'}`}
-              >
-                <span className={`bg-amber h-px transition-all duration-300 ${active ? 'w-4' : 'w-0 group-hover:w-2'}`} />
-                {m.label}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-      <div className="text-ivory/45 mt-2 h-4 font-mono text-[10.5px] transition-opacity" style={{ opacity: hinted ? 1 : 0 }}>
-        {hinted?.hint}
-      </div>
-    </div>
-  )
-}
-
-/** Bottom-right: what you can do, as words. */
-function Actions({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
-  const setWalking = useStore((s) => s.setWalking)
-  const setTourStep = useStore((s) => s.setTourStep)
-  const panel = useStore((s) => s.dockPanel)
-  const setPanel = useStore((s) => s.setDockPanel)
-  return (
-    <div className="rise txt pointer-events-none absolute right-6 bottom-[7.5rem] text-right" style={{ animationDelay: '0.15s' }}>
-      {panel === 'more' && (
-        <div className="rise pointer-events-auto mb-4 text-right" style={{ animationDuration: '0.25s' }}>
-          <Settings city={city} />
-          <div className="mt-2 flex justify-end gap-4 font-mono text-[11px] tracking-[0.12em] uppercase">
-            <button className="lnk text-ivory/60 hover:text-ivory" onClick={onOpenFile}>
-              open a city file
-            </button>
-            <button className="lnk text-ivory/60 hover:text-ivory" onClick={() => setTourStep(0)}>
-              tour
-            </button>
-          </div>
-        </div>
-      )}
-      <div className="pointer-events-auto flex justify-end gap-5 font-mono text-[11.5px] tracking-[0.12em] uppercase">
-        <button className="lnk text-ivory/70 hover:text-ivory" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}>
-          find <kbd className="ml-1 normal-case">⌘K</kbd>
-        </button>
-        <button className="lnk text-ivory/70 hover:text-ivory" onClick={() => setWalking(true)}>
-          walk
-        </button>
-        <ShareLink city={city} />
-        <button className={`lnk ${panel === 'more' ? 'text-ivory' : 'text-ivory/70 hover:text-ivory'}`} data-active={panel === 'more'} onClick={() => setPanel(panel === 'more' ? null : 'more')}>
-          more
-        </button>
-      </div>
-    </div>
-  )
-}
-
-function Settings({ city }: { city: City }) {
+  const open = useStore((s) => s.lensOpen)
+  const setOpen = useStore((s) => s.setLensOpen)
   const heightScale = useStore((s) => s.heightScale)
   const setHeightScale = useStore((s) => s.setHeightScale)
   const hideGenerated = useStore((s) => s.hideGenerated)
   const toggleGenerated = useStore((s) => s.toggleGenerated)
   const showCoupling = useStore((s) => s.showCoupling)
   const setShowCoupling = useStore((s) => s.setShowCoupling)
+
+  if (!open) {
+    const G = MODE_GLYPH[mode]
+    return (
+      <button onClick={() => setOpen(true)} className="glass btn rise pointer-events-auto absolute top-[68px] left-4 h-10 rounded-full pr-4">
+        <G /> <span className="label">lens</span>
+      </button>
+    )
+  }
   return (
-    <div className="text-ivory/70 space-y-1.5 font-mono text-[11px] tracking-[0.06em]">
-      <label className="flex items-center justify-end gap-3">
-        <span className="text-ivory/45">height</span>
-        <select className="text-ivory cursor-pointer bg-transparent outline-none" value={heightScale} onChange={(e) => setHeightScale(e.target.value as never)}>
-          <option value="sqrt">√ lines</option>
-          <option value="log">log lines</option>
-          <option value="linear">lines</option>
-        </select>
-      </label>
-      <label className="flex cursor-pointer items-center justify-end gap-3">
-        <span className="text-ivory/45">hide generated code</span>
-        <input type="checkbox" className="accent-amber" checked={hideGenerated} onChange={toggleGenerated} />
-      </label>
+    <div className="glass rise pointer-events-auto absolute top-[68px] left-4 max-h-[calc(100vh-14rem)] w-[15.5rem] overflow-x-hidden overflow-y-auto" style={{ animationDelay: '0.1s' }}>
+      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+        <span className="label">Lens</span>
+        <button className="text-ivory/35 hover:text-ivory transition" onClick={() => setOpen(false)} aria-label="collapse">
+          <Glyph.chevron width={11} height={11} style={{ transform: 'rotate(180deg)' }} />
+        </button>
+      </div>
+      <ul className="px-2 pb-2">
+        {MODES.filter((m) => m.id !== 'diff' || city.diff).map((m) => {
+          const G = MODE_GLYPH[m.id]
+          const active = mode === m.id
+          return (
+            <li key={m.id}>
+              <button
+                onClick={() => setMode(m.id)}
+                title={m.hint}
+                className={`relative flex w-full items-center gap-3 rounded-lg px-3 py-[7px] text-left transition-colors duration-200 ${active ? 'bg-ivory/[0.06]' : 'hover:bg-ivory/[0.035]'}`}
+              >
+                <span className={`transition-colors ${active ? 'text-amber' : 'text-ivory/45'}`}>
+                  <G />
+                </span>
+                <span className={`text-[13px] leading-5 ${active ? 'text-ivory' : 'text-ivory/75'}`}>{m.label}</span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
+      <div className="text-ivory/45 px-4 pb-3 text-[11.5px] leading-snug">{MODES.find((m) => m.id === mode)?.hint}</div>
+      <div className="hairline border-t px-4 py-3">
+        <Legend city={city} mode={mode} />
+      </div>
+      <div className="hairline text-ivory/50 space-y-2 border-t px-4 py-2.5 font-mono text-[11px]">
+        <label className="flex items-center justify-between">
+          building height
+          <select className="text-ivory/85 cursor-pointer bg-transparent outline-none" value={heightScale} onChange={(e) => setHeightScale(e.target.value as never)}>
+            <option value="sqrt">√ lines</option>
+            <option value="log">log lines</option>
+            <option value="linear">lines</option>
+          </select>
+        </label>
+        <label className="flex cursor-pointer items-center justify-between" title="lockfiles, vendored and generated code">
+          hide generated code
+          <input type="checkbox" className="accent-amber" checked={hideGenerated} onChange={toggleGenerated} />
+        </label>
+      </div>
       {city.couplings.length > 0 && (
-        <label className="flex cursor-pointer items-center justify-end gap-3" title="hover or select a building to see the files that change with it">
-          <span className="text-ivory/45">bridges on hover · {city.couplings.length} pairs</span>
+        <label className="hairline text-ivory/50 flex cursor-pointer items-center justify-between border-t px-4 py-2.5 font-mono text-[11px]" title="hover or select a building to see the files that change with it">
+          <span>
+            bridges on hover <span className="text-ivory/30">· {city.couplings.length} pairs</span>
+          </span>
           <input type="checkbox" className="accent-amber" checked={showCoupling} onChange={(e) => setShowCoupling(e.target.checked)} />
         </label>
       )}
@@ -187,82 +189,60 @@ function Settings({ city }: { city: City }) {
   )
 }
 
-/** Bottom-left, above the timeline: what the colors mean. */
-function Legend({ city }: { city: City }) {
-  const mode = useStore((s) => s.mode)
+function Legend({ city, mode }: { city: City; mode: ColorMode }) {
   const top = useMemo(() => [...city.authors].map((a, i) => ({ ...a, i })).sort((a, b) => b.commits - a.commits).slice(0, 8), [city])
-  const langs = useMemo(() => Object.entries(city.stats.languages).sort((a, b) => b[1] - a[1]).slice(0, 7), [city])
-  if (mode === 'owners') return <OwnersLegend city={city} top={top} />
-  let body: React.ReactNode = null
+  const langs = useMemo(() => Object.entries(city.stats.languages).sort((a, b) => b[1] - a[1]).slice(0, 8), [city])
   switch (mode) {
     case 'churn':
-      body = <Bar from="few commits" to="many" css="linear-gradient(90deg,#2f4a7a,#2d8fa8,#8fd36b,#f5d442,#f28b2b,#e8382b)" />
-      break
+      return <Bar from="few commits" to="many" css="linear-gradient(90deg,#2f4a7a,#2d8fa8,#8fd36b,#f5d442,#f28b2b,#e8382b)" />
     case 'activity':
-      body = <Bar from="quiet" to="being worked on" css="linear-gradient(90deg,#1f2a44,#2b4c7e,#3f8fd2,#8fe3ff,#ffffff)" />
-      break
+      return <Bar from="quiet" to="being worked on" css="linear-gradient(90deg,#1f2a44,#2b4c7e,#3f8fd2,#8fe3ff,#ffffff)" />
     case 'age':
-      body = <Bar from="new" to="old" css="linear-gradient(90deg,#f8f1a6,#8ad5c9,#4a7aa8,#2b3659)" />
-      break
+      return <Bar from="new" to="old" css="linear-gradient(90deg,#f8f1a6,#8ad5c9,#4a7aa8,#2b3659)" />
     case 'hotspots':
-      body = (
-        <div className="flex items-center gap-4">
+      return (
+        <div className="text-ivory/60 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px]">
           {['calm', 'smoke', 'flames', 'inferno'].map((l, i) => (
             <span key={l} className="flex items-center gap-1.5">
-              <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: rgb(FIRE[i]!) }} /> {l}
+              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: rgb(FIRE[i]!) }} /> {l}
             </span>
           ))}
         </div>
       )
-      break
     case 'language':
-      body = (
-        <div className="flex items-center gap-4">
+      return (
+        <div className="text-ivory/60 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px]">
           {langs.map(([l, n]) => (
-            <span key={l} className="whitespace-nowrap">
-              {l} <span className="text-ivory/30">{compact(n)}</span>
+            <span key={l} className="truncate">
+              {l} <span className="text-ivory/35">{formatNum(n)}</span>
             </span>
           ))}
         </div>
       )
-      break
+    case 'owners':
+      return <OwnersLegend city={city} top={top} />
     case 'diff':
-      body = (
-        <div className="flex items-center gap-4">
-          <span className="flex items-center gap-1.5">
-            <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#5fd38d' }} /> added
-          </span>
-          <span className="flex items-center gap-1.5">
-            <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#b89a5e' }} /> modified
-          </span>
-          <span className="flex items-center gap-1.5">
-            <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#ff5c5c' }} /> deleted
-          </span>
-          {city.diff && (
-            <span className="text-ivory/35">
-              {city.diff.files.length} files · {city.diff.base.slice(0, 7)} → {city.diff.head.slice(0, 7)}
+      return (
+        <div className="text-ivory/60 font-mono text-[11px]">
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#5fd38d' }} /> added
             </span>
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#b89a5e' }} /> modified
+            </span>
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#ff5c5c' }} /> deleted
+            </span>
+          </div>
+          {city.diff && (
+            <div className="text-ivory/40 mt-1.5">
+              {city.diff.files.length} files · {city.diff.base.slice(0, 7)} → {city.diff.head.slice(0, 7)}
+            </div>
           )}
         </div>
       )
-      break
   }
-  if (!body) return null
-  return (
-    <div key={mode} className="rise txt text-ivory/55 pointer-events-auto absolute bottom-[7.5rem] left-[4.6rem] font-mono text-[11px] tracking-[0.06em]" style={{ animationDuration: '0.3s' }}>
-      {body}
-    </div>
-  )
-}
-
-function Bar({ from, to, css }: { from: string; to: string; css: string }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span>{from}</span>
-      <i className="inline-block h-px w-44" style={{ background: css }} />
-      <span>{to}</span>
-    </div>
-  )
 }
 
 /** Owners legend with the departure simulation: click a person, see what goes dark. */
@@ -275,41 +255,62 @@ function OwnersLegend({ city, top }: { city: City; top: { i: number; name: strin
     return a ? (a.login ? `@${a.login}` : a.name) : ''
   }
   return (
-    <div className="rise txt pointer-events-auto absolute bottom-[7.5rem] left-[4.6rem] max-w-[min(60rem,calc(100vw-20rem))] font-mono text-[11px] tracking-[0.04em]" style={{ animationDuration: '0.3s' }}>
-      {impact && (
-        <div className="mb-2 text-[12.5px] tracking-normal">
-          <span className="label">if {name(impact.author)} left</span>
-          <span className="ml-3">
-            <span className="text-fire font-sans font-medium">{impact.lost.size}</span>
-            <span className="text-ivory/60 font-sans"> of {impact.total} files ({impact.total ? Math.round((impact.lost.size / impact.total) * 100) : 0}%) lose their last active owner</span>
-          </span>
-          {impact.districts.slice(0, 3).map((d) => (
-            <span key={d.path} className="text-ivory/50 ml-4 whitespace-nowrap">
-              {d.path} <span className="text-fire/80">{d.lost}/{d.files}</span>
-            </span>
-          ))}
-          <button onClick={() => setSim(null)} className="lnk text-ivory/45 hover:text-ivory ml-4 text-[10.5px] tracking-[0.12em] uppercase">
-            clear
-          </button>
-        </div>
-      )}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+    <div className="text-[11.5px]">
+      <div className="text-ivory/70 grid grid-cols-2 gap-x-3 gap-y-1">
         {top.map((a) => (
           <button
             key={a.i}
             onClick={() => setSim(sim === a.i ? null : a.i)}
-            className={`flex items-center gap-1.5 whitespace-nowrap transition ${sim === a.i ? 'text-ivory' : 'text-ivory/60 hover:text-ivory'}`}
+            className={`flex items-center gap-1.5 truncate rounded px-1 -mx-1 text-left transition ${sim === a.i ? 'bg-ivory/[0.08] text-ivory' : 'hover:bg-ivory/[0.05]'}`}
             title="simulate this person leaving"
           >
-            <i className={`inline-block h-1.5 w-1.5 rounded-full ${sim === a.i ? 'ring-amber ring-2 ring-offset-1 ring-offset-black' : ''}`} style={{ background: ownerCss(a.i, city) }} />
-            {a.login ? `@${a.login}` : a.name.split(' ')[0]}
+            <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: ownerCss(a.i, city) }} />
+            <span className="truncate">{a.login ? `@${a.login}` : a.name}</span>
           </button>
         ))}
-        <span className="text-ivory/35 flex items-center gap-1.5 whitespace-nowrap">
-          <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: '#2b3040' }} /> ghost town
+        <span className="flex items-center gap-1.5 truncate px-1 -mx-1">
+          <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: '#1c1f2b', border: '1px solid #3a4256' }} />
+          <span className="text-ivory/45 truncate">ghost town</span>
         </span>
-        {!impact && <span className="text-ivory/30 text-[10.5px]">· click a person to simulate them leaving</span>}
       </div>
+      {impact ? (
+        <div className="hairline mt-3 border-t pt-3">
+          <div className="label mb-1.5">if {name(impact.author)} left</div>
+          <div className="text-[13px]">
+            <span className="text-fire font-medium">{impact.lost.size}</span>{' '}
+            <span className="text-ivory/60">
+              of {impact.total} files ({impact.total ? Math.round((impact.lost.size / impact.total) * 100) : 0}%) would have no active owner
+            </span>
+          </div>
+          {impact.districts.length > 0 && (
+            <ul className="text-ivory/60 mt-2 space-y-0.5 font-mono text-[11px]">
+              {impact.districts.map((d) => (
+                <li key={d.path} className="flex justify-between gap-2">
+                  <span className="truncate">{d.path}</span>
+                  <span className="text-fire/80 shrink-0">
+                    {d.lost}/{d.files}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button onClick={() => setSim(null)} className="text-ivory/45 hover:text-ivory mt-2 font-mono text-[11px] transition">
+            clear simulation
+          </button>
+        </div>
+      ) : (
+        <div className="text-ivory/35 mt-2 font-mono text-[10.5px]">click a person to simulate them leaving</div>
+      )}
+    </div>
+  )
+}
+
+function Bar({ from, to, css }: { from: string; to: string; css: string }) {
+  return (
+    <div className="text-ivory/50 flex items-center gap-2 font-mono text-[11px]">
+      <span>{from}</span>
+      <i className="inline-block h-1.5 flex-1 rounded-full" style={{ background: css }} />
+      <span>{to}</span>
     </div>
   )
 }
@@ -325,10 +326,10 @@ function Tooltip({ city }: { city: City }) {
   const name = f.path.slice(f.path.lastIndexOf('/') + 1)
   const dir = f.path.slice(0, f.path.lastIndexOf('/'))
   return (
-    <div className="txt pointer-events-none absolute z-10" style={{ left: pointer.x + 18, top: pointer.y + 14, maxWidth: '20rem' }}>
+    <div className="glass pointer-events-none absolute z-10 px-3 py-2" style={{ left: pointer.x + 16, top: pointer.y + 16, maxWidth: '20rem' }}>
       <div className="font-mono text-[12.5px]">{name}</div>
       {dir && <div className="text-ivory/45 truncate font-mono text-[10.5px]">{dir}/</div>}
-      <div className="text-ivory/60 mt-0.5 font-mono text-[10.5px]">
+      <div className="text-ivory/60 mt-1.5 font-mono text-[11px]">
         {f.removed ? 'demolished' : `${formatNum(f.lines)} lines`} · {formatNum(f.commits)} commits
         {f.fire > 0 && <span className="text-fire"> · {['', 'smoke', 'flames', 'inferno'][f.fire]}</span>}
       </div>
@@ -336,7 +337,7 @@ function Tooltip({ city }: { city: City }) {
   )
 }
 
-/** Name above the selected building, with a leader line. */
+/** Name tag pinned above the selected building (position comes from the scene each frame). */
 function SelectedTag({ city }: { city: City }) {
   const selected = useStore((s) => s.selected)
   const m = useStore((s) => s.markerScreen)
@@ -344,15 +345,20 @@ function SelectedTag({ city }: { city: City }) {
   const f = city.files[selected]
   if (!f) return null
   const name = f.path.slice(f.path.lastIndexOf('/') + 1)
+  const dir = f.path.slice(0, f.path.lastIndexOf('/'))
   return (
-    <div className="txt pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center" style={{ left: m.x, top: m.y }}>
-      <div className="font-mono text-[12.5px] whitespace-nowrap">{name}</div>
-      <span className="bg-amber mt-1.5 h-5 w-px" />
+    <div className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center" style={{ left: m.x, top: m.y }}>
+      <div className="glass border-amber/60 px-3 py-1.5 text-center whitespace-nowrap">
+        <div className="font-mono text-[12.5px]">{name}</div>
+        {dir && <div className="text-ivory/45 font-mono text-[10px]">{dir}/</div>}
+      </div>
+      <span className="bg-amber mt-1 h-3 w-[1.5px]" />
     </div>
   )
 }
 
-function ShareLink({ city }: { city: City }) {
+/** Copies a link that reproduces the current view; a short link when the API is around. */
+function ShareButton({ city }: { city: City }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const share = async () => {
     const s = useStore.getState()
@@ -383,13 +389,12 @@ function ShareLink({ city }: { city: City }) {
     setTimeout(() => setState('idle'), 1800)
   }
   return (
-    <button onClick={() => void share()} className={`lnk ${state === 'copied' ? 'text-amber' : 'text-ivory/70 hover:text-ivory'}`} title="copy a link to this view">
-      {state === 'copied' ? 'link copied' : state === 'failed' ? 'copy failed' : 'share'}
+    <button onClick={() => void share()} className="btn rounded-full" title="copy a link to this view">
+      <Glyph.share /> {state === 'copied' ? <span className="text-amber">copied</span> : state === 'failed' ? 'copy failed' : 'Share'}
     </button>
   )
 }
 
-/** The inspector: a column on the right edge over a scrim, hairlines between rows. */
 function Inspector({ city }: { city: City }) {
   const selected = useStore((s) => s.selected)
   const select = useStore((s) => s.select)
@@ -401,80 +406,71 @@ function Inspector({ city }: { city: City }) {
   const name = f.path.slice(f.path.lastIndexOf('/') + 1)
   const dir = f.path.slice(0, f.path.lastIndexOf('/'))
   return (
-    <>
-      <div className="scrim-right pointer-events-none absolute inset-y-0 right-0 w-[34rem]" />
-      <div key={selected} className="rise txt pointer-events-auto absolute top-6 right-6 bottom-[10.5rem] w-[19rem] overflow-y-auto pr-1 text-[12.5px] [scrollbar-width:thin]" style={{ animationDuration: '0.35s' }}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            {dir && <div className="text-ivory/45 truncate font-mono text-[11px]">{dir}/</div>}
-            <div className="font-display mt-0.5 text-[26px] leading-tight break-all">{name}</div>
-            <div className="text-ivory/50 mt-1 font-mono text-[11px]">
-              {f.removed ? `demolished · peaked at ${formatNum(f.maxLines)} lines` : f.lang}
-              {f.generated ? ' · generated' : ''}
-              {f.vendored ? ' · vendored' : ''}
-            </div>
+    <div key={selected} className="glass rise pointer-events-auto absolute top-[68px] right-4 w-[20rem] overflow-hidden text-[12.5px]">
+      <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-3">
+        <div className="min-w-0">
+          {dir && <div className="text-ivory/45 truncate font-mono text-[11px]">{dir}/</div>}
+          <div className="font-mono text-[15px] leading-tight break-all">{name}</div>
+          <div className="text-ivory/50 mt-1 font-mono text-[11px]">
+            {f.removed ? `demolished · peaked at ${formatNum(f.maxLines)} lines` : f.lang}
+            {f.generated ? ' · generated' : ''}
+            {f.vendored ? ' · vendored' : ''}
           </div>
-          <button className="text-ivory/40 hover:text-ivory mt-1 transition" onClick={() => select(null)} aria-label="close">
-            <Glyph.close />
-          </button>
         </div>
-        <dl className="hairline mt-4 grid grid-cols-3 gap-y-3 border-t pt-3">
-          <Row k="lines" v={formatNum(f.lines)} />
-          <Row k="commits" v={formatNum(f.commits)} />
-          <Row k="complexity" v={formatNum(f.complexity)} />
-          <Row k="fixes" v={formatNum(f.bugFixes)} />
-          <Row k="created" v={formatISO(f.created)} />
-          <Row k="touched" v={formatISO(f.lastTouched)} />
-        </dl>
-        {(f.fire > 0 || f.ghost || (d && d.files >= 3)) && (
-          <div className="hairline mt-3 space-y-1.5 border-t pt-3 text-[12px]">
-            {f.fire > 0 && (
-              <div className="text-fire">
-                {['', 'Smoking', 'On fire', 'Inferno']![f.fire]}: changes often and is complex <span className="text-fire/60 font-mono">({f.hotspot.toFixed(2)})</span>
-              </div>
-            )}
-            {f.ghost && <div className="text-ivory/55">Ghost town: none of its owners has committed in over a year.</div>}
-            {d && d.files >= 3 && (
-              <div className={d.bus <= 1 ? 'text-fire/90' : 'text-ivory/55'}>
-                <span className="font-mono">{d.path || '(root)'}</span> · bus factor {d.bus}
-                {d.bus === 1 && ': one person holds this district'}
-                {d.bus === 0 && ': most of this district has no active owner'}
-              </div>
-            )}
-          </div>
-        )}
-        {f.owners.length > 0 && (
-          <div className="hairline mt-3 border-t pt-3">
-            <div className="label mb-2">owners</div>
-            {f.owners.map((o) => {
-              const a = city.authors[o.author]
-              if (!a) return null
-              return (
-                <div key={o.author} className="flex items-center gap-2 py-0.5">
-                  <i className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: ownerCss(o.author, city) }} />
-                  <span className="truncate">{a.login ? `@${a.login}` : a.name}</span>
-                  <span className="text-ivory/45 ml-auto font-mono text-[11px]">{Math.round(o.share * 100)}%</span>
-                </div>
-              )
-            })}
-          </div>
-        )}
-        <CoupledWith city={city} id={selected} />
-        {url && (
-          <a className="lnk text-ivory/70 hover:text-amber mt-4 inline-block font-mono text-[11px] tracking-[0.12em] uppercase" href={url} target="_blank" rel="noreferrer">
-            open on GitHub ↗
-          </a>
-        )}
+        <button className="text-ivory/40 hover:text-ivory mt-0.5 transition" onClick={() => select(null)} aria-label="close">
+          <Glyph.close />
+        </button>
       </div>
-    </>
-  )
-}
-
-function Row({ k, v }: { k: string; v: string }) {
-  return (
-    <div>
-      <dt className="label">{k}</dt>
-      <dd className="mt-0.5 font-mono text-[12.5px] whitespace-nowrap">{v}</dd>
+      <div className="hairline grid grid-cols-3 border-t">
+        <Cell label="lines" value={formatNum(f.lines)} />
+        <Cell label="commits" value={formatNum(f.commits)} />
+        <Cell label="complexity" value={formatNum(f.complexity)} />
+        <Cell label="bug fixes" value={formatNum(f.bugFixes)} top />
+        <Cell label="created" value={formatISO(f.created)} top />
+        <Cell label="touched" value={formatISO(f.lastTouched)} top />
+      </div>
+      {(f.fire > 0 || f.ghost || (d && d.files >= 3)) && (
+        <div className="hairline space-y-1.5 border-t px-4 py-3 text-[12px]">
+          {f.fire > 0 && (
+            <div className="text-fire flex items-start gap-2">
+              <Glyph.hotspots className="mt-0.5 shrink-0" />
+              <span>
+                {['', 'Smoking', 'On fire', 'Inferno']![f.fire]}: changes often and is complex <span className="text-fire/60 font-mono">({f.hotspot.toFixed(2)})</span>
+              </span>
+            </div>
+          )}
+          {f.ghost && <div className="text-ivory/55">Ghost town: none of its owners has committed in over a year.</div>}
+          {d && d.files >= 3 && (
+            <div className={d.bus <= 1 ? 'text-fire/90' : 'text-ivory/55'}>
+              <span className="font-mono">{d.path || '(root)'}</span> · bus factor {d.bus}
+              {d.bus === 1 && ': one person holds this district'}
+              {d.bus === 0 && ': most of this district has no active owner'}
+            </div>
+          )}
+        </div>
+      )}
+      {f.owners.length > 0 && (
+        <div className="hairline border-t px-4 py-3">
+          <div className="label mb-2">owners</div>
+          {f.owners.map((o) => {
+            const a = city.authors[o.author]
+            if (!a) return null
+            return (
+              <div key={o.author} className="flex items-center gap-2 py-0.5">
+                <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: ownerCss(o.author, city) }} />
+                <span className="truncate">{a.login ? `@${a.login}` : a.name}</span>
+                <span className="text-ivory/45 ml-auto font-mono text-[11px]">{Math.round(o.share * 100)}%</span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+      <CoupledWith city={city} id={selected} />
+      {url && (
+        <a className="hairline text-ivory/70 hover:text-amber flex items-center justify-between border-t px-4 py-2.5 font-mono text-[11.5px] transition" href={url} target="_blank" rel="noreferrer">
+          open on GitHub <Glyph.external width={12} height={12} />
+        </a>
+      )}
     </div>
   )
 }
@@ -485,13 +481,12 @@ function CoupledWith({ city, id }: { city: City; id: number }) {
   const partners = useMemo(() => partnersOf(city, id).slice(0, 6), [city, id])
   if (partners.length === 0) return null
   const top = partners[0]!
-  const topName = city.files[top.id]!.path.slice(city.files[top.id]!.path.lastIndexOf('/') + 1)
   return (
-    <div className="hairline mt-3 border-t pt-3">
+    <div className="hairline border-t px-4 py-3">
       <div className="label mb-1">changes together with</div>
       <p className="text-ivory/50 mb-2 text-[11.5px] leading-snug">
-        Edit this file and {Math.round(top.confidence * 100)}% of the time {topName} changes in the same commit. Nothing imports it; the history is the only thing
-        that knows.
+        Edit this file and {Math.round(top.confidence * 100)}% of the time {city.files[top.id]!.path.slice(city.files[top.id]!.path.lastIndexOf('/') + 1)} changes in the
+        same commit. Nothing imports it; the history is the only thing that knows. Expect to touch these too.
       </p>
       <ul className="space-y-1">
         {partners.map((p) => {
@@ -512,21 +507,33 @@ function CoupledWith({ city, id }: { city: City; id: number }) {
   )
 }
 
+function Cell({ label, value, top }: { label: string; value: string; top?: boolean }) {
+  return (
+    <div className={`hairline px-4 py-2.5 ${top ? 'border-t' : ''} [&:not(:nth-child(3n+1))]:border-l`}>
+      <div className="label">{label}</div>
+      <div className="mt-0.5 font-mono text-[12.5px] whitespace-nowrap">{value}</div>
+    </div>
+  )
+}
+
 function WalkHud({ city }: { city: City }) {
   const setWalking = useStore((s) => s.setWalking)
   return (
-    <div className="text-ivory txt">
-      <div className="scrim-top pointer-events-none absolute inset-x-0 top-0 h-28" />
-      <div className="pointer-events-none absolute top-6 left-1/2 -translate-x-1/2 text-center font-mono text-[11px] tracking-[0.12em] uppercase">
-        <div className="text-amber">walking {city.repo.name}</div>
-        <div className="text-ivory/50 mt-1">
-          <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move · <kbd>⇧</kbd> run · <kbd>esc</kbd> leave
+    <div className="text-ivory">
+      <div className="pointer-events-none absolute top-4 left-1/2 -translate-x-1/2">
+        <div className="glass glass-pill flex h-10 items-center gap-3 px-5 font-mono text-[11.5px]">
+          <Glyph.walk className="text-amber" />
+          <span>{city.repo.name}</span>
+          <span className="hairline h-4 border-l" />
+          <span className="text-ivory/60">
+            <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> move · <kbd>⇧</kbd> run · <kbd>esc</kbd> leave
+          </span>
         </div>
       </div>
       <div className="pointer-events-none absolute top-1/2 left-1/2 h-1 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/80" />
-      <div className="text-ivory/40 pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 font-mono text-[10.5px]">if the mouse is not captured, click the city</div>
-      <button onClick={() => setWalking(false)} className="lnk text-ivory/70 hover:text-ivory pointer-events-auto absolute right-6 bottom-6 font-mono text-[11.5px] tracking-[0.12em] uppercase">
-        leave walk
+      <div className="text-ivory/45 pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 font-mono text-[11px]">if the mouse is not captured, click the city</div>
+      <button onClick={() => setWalking(false)} className="glass btn pointer-events-auto absolute right-4 bottom-4 h-10 rounded-full px-4">
+        Leave walk
       </button>
     </div>
   )
@@ -564,18 +571,23 @@ function Search({ city }: { city: City }) {
     for (const f of city.files) {
       if (!f.removed && f.path.toLowerCase().includes(s)) {
         out.push({ id: f.id, path: f.path })
-        if (out.length >= 10) break
+        if (out.length >= 12) break
       }
     }
     return out
   }, [q, city])
 
-  if (!open) return null
+  if (!open)
+    return (
+      <button onClick={() => setOpen(true)} className="glass btn rise pointer-events-auto absolute bottom-[7.5rem] left-4 h-10 rounded-full pr-3">
+        <Glyph.search /> find a file <kbd>⌘K</kbd>
+      </button>
+    )
   return (
-    <div className="pointer-events-auto absolute inset-0 z-20 flex items-start justify-center bg-[rgb(5_7_13/0.6)] pt-[18vh] backdrop-blur-[2px]" onClick={() => setOpen(false)}>
-      <div className="rise txt w-[36rem] max-w-[90vw]" style={{ animationDuration: '0.3s' }} onClick={(e) => e.stopPropagation()}>
-        <div className="hairline flex items-baseline gap-3 border-b pb-3 font-mono text-[18px]">
-          <span className="text-ivory/40 select-none">/</span>
+    <div className="pointer-events-auto absolute inset-x-0 top-24 z-20 mx-auto w-[34rem] max-w-[90vw]">
+      <div className="glass rise overflow-hidden" style={{ animationDuration: '0.35s' }}>
+        <div className="flex items-center gap-3 px-4">
+          <Glyph.search className="text-ivory/50" />
           <input
             ref={input}
             value={q}
@@ -586,17 +598,17 @@ function Search({ city }: { city: City }) {
                 setOpen(false)
               }
             }}
-            placeholder="find a file"
-            className="placeholder:text-ivory/25 caret-amber w-full bg-transparent outline-none"
+            placeholder="Jump to a file…"
+            className="placeholder:text-ivory/30 caret-amber w-full bg-transparent py-3.5 font-mono text-[13.5px] outline-none"
           />
           <kbd>esc</kbd>
         </div>
         {results.length > 0 && (
-          <ul className="mt-3">
+          <ul className="hairline max-h-80 overflow-auto border-t py-1">
             {results.map((r, i) => (
               <li key={r.id}>
                 <button
-                  className={`lnk flex w-full items-center justify-between py-1.5 text-left font-mono text-[13px] ${i === 0 ? 'text-ivory' : 'text-ivory/65 hover:text-ivory'}`}
+                  className={`hover:bg-ivory/[0.05] flex w-full items-center justify-between px-4 py-2 text-left font-mono text-[12.5px] ${i === 0 ? 'text-ivory' : 'text-ivory/75'}`}
                   onClick={() => {
                     select(r.id, true)
                     setOpen(false)
@@ -612,12 +624,6 @@ function Search({ city }: { city: City }) {
       </div>
     </div>
   )
-}
-
-function compact(n: number): string {
-  if (n >= 1e6) return `${(n / 1e6).toFixed(1).replace(/\.0$/, '')}M`
-  if (n >= 1e3) return `${(n / 1e3).toFixed(1).replace(/\.0$/, '')}k`
-  return String(n)
 }
 
 function rgb(c: [number, number, number]) {

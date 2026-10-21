@@ -58,14 +58,12 @@ canvas {
 
 /* Frosted glass, the one surface the HUD is built from. */
 .glass {
-  background: color-mix(in oklab, #0e1220 70%, transparent);
-  border: 1px solid color-mix(in oklab, var(--color-ivory) 10%, transparent);
-  backdrop-filter: blur(22px) saturate(1.4);
-  -webkit-backdrop-filter: blur(22px) saturate(1.4);
-  border-radius: 14px;
-  box-shadow:
-    0 1px 0 color-mix(in oklab, var(--color-ivory) 6%, transparent) inset,
-    0 12px 40px rgb(0 0 0 / 0.4);
+  background: color-mix(in oklab, #0b0e18 78%, transparent);
+  border: 1px solid color-mix(in oklab, var(--color-ivory) 7%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 0.35);
 }
 .glass-pill {
   border-radius: 999px;
@@ -77,52 +75,6 @@ canvas {
   backdrop-filter: blur(22px) saturate(1.4);
   border-radius: 14px;
   box-shadow: 0 12px 40px rgb(0 0 0 / 0.4);
-}
-
-/* Type set straight on the scene: a soft shadow keeps it legible over lights. */
-.txt {
-  text-shadow:
-    0 1px 2px rgb(0 0 0 / 0.9),
-    0 0 18px rgb(0 0 0 / 0.6);
-}
-/* Edge scrims: darken the borders of the viewport so UI reads over the city. */
-.scrim-top {
-  background: linear-gradient(180deg, rgb(5 7 13 / 0.75) 0%, rgb(5 7 13 / 0.35) 45%, transparent 100%);
-}
-.scrim-bottom {
-  background: linear-gradient(0deg, rgb(5 7 13 / 0.85) 0%, rgb(5 7 13 / 0.4) 50%, transparent 100%);
-}
-.scrim-right {
-  background: linear-gradient(270deg, rgb(5 7 13 / 0.94) 0%, rgb(5 7 13 / 0.8) 45%, rgb(5 7 13 / 0.3) 80%, transparent 100%);
-}
-/* Text links: hairline underline that draws itself on hover. */
-.lnk {
-  background-image: linear-gradient(currentColor, currentColor);
-  background-size: 0% 1px;
-  background-repeat: no-repeat;
-  background-position: 0 100%;
-  transition:
-    background-size 0.25s cubic-bezier(0.2, 0.7, 0.2, 1),
-    color 0.2s;
-  padding-bottom: 1px;
-}
-.lnk:hover,
-.lnk[data-active='true'] {
-  background-size: 100% 1px;
-}
-.ring-btn {
-  border: 1px solid color-mix(in oklab, var(--color-ivory) 35%, transparent);
-  transition:
-    border-color 0.2s,
-    background-color 0.2s,
-    transform 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
-}
-.ring-btn:hover {
-  border-color: var(--color-amber);
-  background: color-mix(in oklab, var(--color-amber) 12%, transparent);
-}
-.ring-btn:active {
-  transform: scale(0.95);
 }
 
 .label {
@@ -165,17 +117,20 @@ canvas {
   --p: 0%;
 }
 .scrub::-webkit-slider-runnable-track {
-  height: 1px;
-  background: linear-gradient(90deg, var(--color-amber) var(--p), color-mix(in oklab, var(--color-ivory) 22%, transparent) var(--p));
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--color-amber) var(--p), color-mix(in oklab, var(--color-ivory) 18%, transparent) var(--p));
 }
 .scrub::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 11px;
-  height: 11px;
-  margin-top: -5px;
+  width: 14px;
+  height: 14px;
+  margin-top: -6px;
   border-radius: 50%;
-  background: var(--color-amber);
-  box-shadow: 0 0 0 4px rgb(5 7 13 / 0.9);
+  background: var(--color-ivory);
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--color-amber) 25%, transparent),
+    0 2px 6px rgb(0 0 0 / 0.5);
   transition: transform 0.15s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .scrub:hover::-webkit-slider-thumb,

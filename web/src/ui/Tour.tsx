@@ -32,21 +32,21 @@ const STEPS: Step[] = [
   },
   {
     title: 'Change the lens',
-    body: 'The list in the top-right recolors the city: churn, activity, hotspots, owners, language, age. In Owners, click a person above the timeline to simulate them leaving.',
-    place: 'right-40 top-24',
+    body: 'Recolor the whole city by churn, by who maintains each file, by language, or by age. In Owners, click a person to simulate them leaving and watch what goes dark.',
+    place: 'left-72 top-28',
     mode: 'owners',
   },
   {
     title: 'Travel through time',
-    body: 'Press space, or drag the line along the bottom, to watch the city grow commit by commit. The diamonds on it are the moments that shaped it: rewrites, demolitions, people arriving and leaving.',
-    place: 'left-[4.6rem] bottom-40',
+    body: 'Press space, or drag the slider, to watch the city grow commit by commit. The diamonds on the track are the moments that shaped it: rewrites, demolitions, people arriving and leaving.',
+    place: 'left-1/2 bottom-28 -translate-x-1/2',
     mode: 'churn',
     play: true,
   },
   {
-    title: 'Start from the findings',
-    body: 'The statement at the top is what the history found, one at a time, with the proof one click away. Arrow keys move between them. Drag to orbit, scroll to zoom, ⌘K finds a file, walk strolls the streets.',
-    place: 'left-1/2 top-44 -translate-x-1/2',
+    title: 'Start from the insights',
+    body: 'The panel on the right says what the history found, in plain sentences. Each one is a button that shows it. Drag to orbit, scroll to zoom, ⌘K to find a file, Walk to stroll the streets.',
+    place: 'right-[22.5rem] top-24',
   },
 ]
 
@@ -91,24 +91,29 @@ export function Tour({ city: _city }: { city: City }) {
     setStep(null)
   }
   return (
-    <div key={step} className={`rise txt text-ivory border-amber pointer-events-auto absolute z-20 w-[24rem] max-w-[90vw] border-l pl-5 ${s.place}`} style={{ animationDuration: '0.5s' }}>
+    <div key={step} className={`glass rise text-ivory pointer-events-auto absolute z-20 w-[23rem] max-w-[90vw] p-5 ${s.place}`} style={{ animationDuration: '0.5s' }}>
       <div className="label">
         {String(step + 1).padStart(2, '0')} / {String(STEPS.length).padStart(2, '0')}
       </div>
-      <div className="font-display mt-2 text-[24px] leading-tight">{s.title}</div>
+      <div className="font-display mt-2 text-[22px] leading-tight">{s.title}</div>
       <p className="text-ivory/65 mt-2 text-[13.5px] leading-relaxed">{s.body}</p>
-      <div className="mt-4 flex items-center gap-6 font-mono text-[11px] tracking-[0.12em] uppercase">
-        <button className="lnk text-amber" onClick={() => (step + 1 < STEPS.length ? setStep(step + 1) : finish())}>
-          {step + 1 < STEPS.length ? 'next' : 'explore'}
-        </button>
-        {step > 0 && (
-          <button className="lnk text-ivory/55 hover:text-ivory" onClick={() => setStep(step - 1)}>
-            back
-          </button>
-        )}
-        <button className="lnk text-ivory/40 hover:text-ivory" onClick={finish}>
+      <div className="mt-4 flex items-center justify-between">
+        <button className="text-ivory/45 hover:text-ivory font-mono text-[11.5px] transition" onClick={finish}>
           skip
         </button>
+        <div className="flex items-center gap-1">
+          {step > 0 && (
+            <button className="btn h-8 rounded-full px-3" onClick={() => setStep(step - 1)}>
+              Back
+            </button>
+          )}
+          <button
+            className="bg-amber text-bg h-8 rounded-full px-4 text-[12.5px] font-medium transition-transform hover:scale-[1.03] active:scale-95"
+            onClick={() => (step + 1 < STEPS.length ? setStep(step + 1) : finish())}
+          >
+            {step + 1 < STEPS.length ? 'Next' : 'Explore'}
+          </button>
+        </div>
       </div>
     </div>
   )
