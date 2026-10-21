@@ -12,6 +12,7 @@ import { ownerSlots } from '../city/colors'
 import type { City } from '../city/types'
 import { Buildings } from './Buildings'
 import { Coupling } from './Coupling'
+import { Cranes } from './Cranes'
 import { Districts } from './Districts'
 import { FireLights } from './FireLights'
 import { Flames } from './Flames'
@@ -22,6 +23,7 @@ import { Sky, makeSkyMaterial } from './Sky'
 import { Streets } from './Streets'
 import { Traffic } from './Traffic'
 import { Walk } from './Walk'
+import { Waterfront } from './Waterfront'
 import { patchHeightFog } from './fog'
 
 patchHeightFog()
@@ -49,7 +51,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   // The extra passes are worth it up to a mid-sized city; beyond that the
   // frame budget goes to the buildings.
   const n = city.files.length
-  const wet = n <= 12000
+  const wet = n <= 4000
   const traffic = n <= 30000
   // The sun sits low on the horizon: long shadows, and the sky glows on its side.
   const sun = useMemo(() => new THREE.Vector3(cx + size * 0.85, size * 0.22, cz - size * 0.5), [cx, cz, size])
@@ -96,12 +98,14 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
 
       <Districts city={city} />
       <Streets city={city} />
+      <Waterfront city={city} />
       {wet && <WetStreets city={city} />}
       {traffic && <Traffic city={city} timeline={timeline} />}
       <Lots city={city} timeline={timeline} />
       <Buildings city={city} timeline={timeline} interactive={!hero} />
       <Flames city={city} timeline={timeline} />
       <FireLights city={city} timeline={timeline} />
+      <Cranes city={city} timeline={timeline} />
       <Coupling city={city} timeline={timeline} />
       <Suspense fallback={null}>
         <Labels city={city} />

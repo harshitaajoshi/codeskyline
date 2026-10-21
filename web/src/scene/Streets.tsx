@@ -28,9 +28,6 @@ export function furnishedPlates(city: City): Dir[] {
  */
 export function Streets({ city }: { city: City }) {
   const dashes = useRef<THREE.InstancedMesh>(null!)
-  const poles = useRef<THREE.InstancedMesh>(null!)
-  const heads = useRef<THREE.InstancedMesh>(null!)
-  const pools = useRef<THREE.InstancedMesh>(null!)
   const trunks = useRef<THREE.InstancedMesh>(null!)
   const canopies = useRef<THREE.InstancedMesh>(null!)
 
@@ -39,9 +36,6 @@ export function Streets({ city }: { city: City }) {
   const mats = useMemo(
     () => ({
       dash: new THREE.MeshStandardMaterial({ color: '#c9b872', roughness: 0.9 }),
-      pole: new THREE.MeshStandardMaterial({ color: '#2a2b2e', roughness: 0.6, metalness: 0.4 }),
-      head: new THREE.MeshStandardMaterial({ color: '#f1d9a8', emissive: new THREE.Color(3.2, 2.5, 1.5), toneMapped: false }),
-      pool: new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
       trunk: new THREE.MeshStandardMaterial({ color: '#2d2419', roughness: 1 }),
       canopy: new THREE.MeshStandardMaterial({ color: '#1f3a22', roughness: 1, flatShading: true }),
     }),
@@ -63,19 +57,6 @@ export function Streets({ city }: { city: City }) {
     })
     dashes.current.count = data.dashes.length
 
-    data.lamps.forEach((l, i) => {
-      q.setFromAxisAngle(up, l.yaw)
-      mat.compose(pos.set(l.x, l.y, l.z), q, one)
-      poles.current.setMatrixAt(i, mat)
-      heads.current.setMatrixAt(i, mat)
-      // The pool sits under the lamp head, out over the street.
-      const hx = l.x + Math.cos(l.yaw) * 0.14
-      const hz = l.z - Math.sin(l.yaw) * 0.14
-      mat.compose(pos.set(hx, l.y + 0.012, hz), q, one)
-      pools.current.setMatrixAt(i, mat)
-    })
-    for (const m of [poles.current, heads.current, pools.current]) m.count = data.lamps.length
-
     data.trees.forEach((t, i) => {
       q.setFromAxisAngle(up, t.yaw)
       const s = 0.8 + 0.5 * t.size
@@ -87,7 +68,7 @@ export function Streets({ city }: { city: City }) {
     })
     trunks.current.count = canopies.current.count = data.trees.length
 
-    for (const m of [dashes.current, poles.current, heads.current, pools.current, trunks.current, canopies.current]) {
+    for (const m of [dashes.current, trunks.current, canopies.current]) {
       m.instanceMatrix.needsUpdate = true
       if (m.instanceColor) m.instanceColor.needsUpdate = true
       m.computeBoundingSphere()
@@ -97,20 +78,64 @@ export function Streets({ city }: { city: City }) {
   return (
     <>
       <instancedMesh ref={dashes} args={[DASH, mats.dash, Math.max(1, data.dashes.length)]} receiveShadow />
-      <instancedMesh ref={poles} args={[POLE, mats.pole, Math.max(1, data.lamps.length)]} castShadow />
-      <instancedMesh ref={heads} args={[HEAD, mats.head, Math.max(1, data.lamps.length)]} />
-      <instancedMesh ref={pools} args={[POOL, mats.pool, Math.max(1, data.lamps.length)]} renderOrder={2} />
+      <LampPosts lamps={data.lamps} />
       <instancedMesh ref={trunks} args={[TRUNK, mats.trunk, Math.max(1, data.trees.length)]} castShadow />
       <instancedMesh ref={canopies} args={[CANOPY, mats.canopy, Math.max(1, data.trees.length)]} castShadow />
     </>
   )
 }
 
-interface Placed {
+export interface Placed {
   x: number
   y: number
   z: number
   yaw: number
+}
+
+/** Lamp posts with a pool of light on the pavement under each head. */
+export function LampPosts({ lamps }: { lamps: Placed[] }) {
+  const poles = useRef<THREE.InstancedMesh>(null!)
+  const heads = useRef<THREE.InstancedMesh>(null!)
+  const pools = useRef<THREE.InstancedMesh>(null!)
+  const mats = useMemo(
+    () => ({
+      pole: new THREE.MeshStandardMaterial({ color: '#2a2b2e', roughness: 0.6, metalness: 0.4 }),
+      head: new THREE.MeshStandardMaterial({ color: '#f1d9a8', emissive: new THREE.Color(3.2, 2.5, 1.5), toneMapped: false }),
+      pool: new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+    }),
+    [],
+  )
+  useEffect(() => {
+    const mat = new THREE.Matrix4()
+    const q = new THREE.Quaternion()
+    const up = new THREE.Vector3(0, 1, 0)
+    const pos = new THREE.Vector3()
+    const one = new THREE.Vector3(1, 1, 1)
+    lamps.forEach((l, i) => {
+      q.setFromAxisAngle(up, l.yaw)
+      mat.compose(pos.set(l.x, l.y, l.z), q, one)
+      poles.current.setMatrixAt(i, mat)
+      heads.current.setMatrixAt(i, mat)
+      // The pool sits under the lamp head, out over the street.
+      const hx = l.x + Math.cos(l.yaw) * 0.14
+      const hz = l.z - Math.sin(l.yaw) * 0.14
+      mat.compose(pos.set(hx, l.y + 0.012, hz), q, one)
+      pools.current.setMatrixAt(i, mat)
+    })
+    for (const m of [poles.current, heads.current, pools.current]) {
+      m.count = lamps.length
+      m.instanceMatrix.needsUpdate = true
+      m.computeBoundingSphere()
+    }
+  }, [lamps])
+  const n = Math.max(1, lamps.length)
+  return (
+    <>
+      <instancedMesh ref={poles} args={[POLE, mats.pole, n]} castShadow />
+      <instancedMesh ref={heads} args={[HEAD, mats.head, n]} />
+      <instancedMesh ref={pools} args={[POOL, mats.pool, n]} renderOrder={2} />
+    </>
+  )
 }
 
 function buildStreets(city: City) {
