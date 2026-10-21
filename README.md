@@ -49,6 +49,15 @@ Each one is a button that shows it.
 - **Find anything.** ⌘K jumps to a file; the camera flies there and tags it.
 - **A tour** on every open, skippable in one click, and a landing page where the
   city demonstrates each idea as you scroll.
+- **A real city at dusk.** Towers with setbacks and spires, floors and
+  storefronts on the facades, sidewalks, lamps, trees, lane markings, traffic
+  with headlights, a harbour the skyline reflects in, and fire that lights up
+  the buildings around it. Time of day follows the timeline: the first commits
+  are in daylight, the present is dusk. Cranes appear on buildings that are
+  growing; demolitions leave rubble.
+- **Rain.** One switch in the lens panel (or `?rain=1`).
+- **Postcard and film.** Save a 2x picture of the city, or run a forty second
+  flythrough over its findings.
 - **Shareable.** Every view is a URL (`/r/owner/repo?t=0.4&mode=owners&f=12`),
   short links, and a README badge that is a silhouette of the repo's own skyline.
 
