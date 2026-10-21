@@ -224,7 +224,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
                         {g.burning > 0 && <span className="text-fire"> · {g.burning} on fire</span>}
                       </div>
                     </div>
-                    <img src={`/badge/${g.owner}/${g.name}.svg?label=`} alt="" className="hidden h-6 w-full object-contain object-left opacity-80 sm:block" loading="lazy" />
+                    <img src={`/badge/${g.owner}/${g.name}.svg?bare=1`} alt="" className="hidden h-6 w-full object-contain object-left opacity-70 transition group-hover:opacity-100 sm:block" loading="lazy" />
                     <span className="text-ivory/40 group-hover:text-amber font-mono text-xs">open →</span>
                   </button>
                 </li>

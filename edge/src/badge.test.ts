@@ -11,7 +11,7 @@ describe('badge', () => {
     })
     expect(svg.startsWith('<svg')).toBe(true)
     expect((svg.match(/<rect/g) ?? []).length).toBe(3) // background + 2 bars
-    expect(svg).toContain('#ff2d2d')
+    expect(svg).toContain('#ff6a3d')
     expect(svg).toContain('1.2k files')
   })
   it('compacts numbers', () => {

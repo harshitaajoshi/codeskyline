@@ -157,8 +157,8 @@ app.get('/badge/:owner/:file', async (c) => {
     .first<{ summary: string }>()
   const theme = c.req.query('theme') === 'light' ? 'light' : 'dark'
   const svg = row
-    ? skylineBadge(JSON.parse(row.summary) as Summary, { theme, label: (c.req.query('label') ?? 'codeskyline').slice(0, 40) })
-    : skylineBadge(emptySummary(`${owner}/${name}`), { theme, label: 'codeskyline · not built yet' })
+    ? skylineBadge(JSON.parse(row.summary) as Summary, { theme, bare: c.req.query('bare') === '1', label: (c.req.query('label') ?? 'codeskyline').slice(0, 40) })
+    : skylineBadge(emptySummary(`${owner}/${name}`), { theme, bare: c.req.query('bare') === '1', label: 'codeskyline · not built yet' })
   return new Response(svg, {
     headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600, s-maxage=3600' },
   })
