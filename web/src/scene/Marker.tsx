@@ -12,7 +12,7 @@ import type { City } from '../city/types'
  * each frame the building's top is projected to screen space and written to
  * the store, which avoids drei's Html (a second React root) entirely.
  */
-export function Marker({ city, timeline }: { city: City; timeline: TimelineData }) {
+export function Marker({ city, timeline, beam: showBeam = true }: { city: City; timeline: TimelineData; beam?: boolean }) {
   const selected = useStore((s) => s.selected)
   const k = useStore((s) => s.k)
   const heightScale = useStore((s) => s.heightScale)
@@ -56,7 +56,7 @@ export function Marker({ city, timeline }: { city: City; timeline: TimelineData 
         <ringGeometry args={[r, r + 0.25, 48]} />
         <meshBasicMaterial color="#e7633b" transparent opacity={0.7} depthWrite={false} toneMapped={false} />
       </mesh>
-      <mesh ref={beam} position={[cx, h + 8, cz]} renderOrder={4}>
+      <mesh ref={beam} visible={showBeam} position={[cx, h + 8, cz]} renderOrder={4}>
         <cylinderGeometry args={[r * 0.3, r * 0.5, 16, 16, 1, true]} />
         <meshBasicMaterial color="#e7633b" transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
       </mesh>

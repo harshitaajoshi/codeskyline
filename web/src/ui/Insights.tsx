@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { useStore } from '../store'
-import { activeAuthors, simulateDeparture } from '../city/knowledge'
+import { worstDeparture } from '../city/knowledge'
 import { formatNum } from '../city/scales'
 import type { City } from '../city/types'
 import { Glyph } from './glyphs'
@@ -106,13 +106,9 @@ export function buildInsights(city: City): Insight[] {
     })
   }
 
-  const active = [...activeAuthors(city)].filter((i) => !/\[bot\]|dependabot|renovate/i.test(city.authors[i]!.name))
-  let worst: { author: number; lost: number; total: number } | null = null
-  for (const a of active.slice(0, 40)) {
-    const r = simulateDeparture(city, a)
-    if (r.lost.size > 0 && (!worst || r.lost.size > worst.lost)) worst = { author: a, lost: r.lost.size, total: r.total }
-  }
-  if (worst && worst.total > 0) {
+  const w = worstDeparture(city)
+  const worst = w ? { author: w.author, lost: w.lost.size, total: w.total } : null
+  if (worst) {
     out.push({
       key: 'departure',
       tone: worst.lost / worst.total > 0.2 ? 'fire' : 'amber',

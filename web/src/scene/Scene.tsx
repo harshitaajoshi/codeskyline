@@ -5,6 +5,7 @@ import { CameraControls } from '@react-three/drei'
 import { Bloom, EffectComposer, N8AO, Vignette } from '@react-three/postprocessing'
 import type CameraControlsImpl from 'camera-controls'
 import { useStore } from '../store'
+import { BEATS, reducedMotion, storyTargets, useStory } from '../story'
 import { cityBounds, height } from '../city/scales'
 import { buildTimeline, linesAt, type TimelineData } from '../city/timeline'
 import { ownerSlots } from '../city/colors'
@@ -38,8 +39,6 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   const { cx, cz, size } = cityBounds(city)
   const timeline = useMemo(() => timelineFor(city), [city])
   const setPointer = useStore((s) => s.setPointer)
-  // The hero is pinned at "now"; the interactive scene follows the store.
-  const fixedK = hero ? timeline.K - 1 : undefined
 
   return (
     <Canvas
@@ -77,15 +76,15 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <DepthTuning size={size} />
 
       <Districts city={city} />
-      <Lots city={city} timeline={timeline} fixedK={fixedK} />
-      <Buildings city={city} timeline={timeline} interactive={!hero} fixedK={fixedK} />
-      <Flames city={city} timeline={timeline} fixedK={fixedK} />
-      {!hero && <Coupling city={city} timeline={timeline} />}
+      <Lots city={city} timeline={timeline} />
+      <Buildings city={city} timeline={timeline} interactive={!hero} />
+      <Flames city={city} timeline={timeline} />
+      <Coupling city={city} timeline={timeline} />
       <Suspense fallback={null}>
         <Labels city={city} />
       </Suspense>
 
-      {!hero && <Marker city={city} timeline={timeline} />}
+      <Marker city={city} timeline={timeline} beam={!hero} />
       {hero ? <HeroCamera city={city} /> : <Camera city={city} />}
       {!hero && <Playback />}
       {!hero && <Walk city={city} timeline={timeline} />}
@@ -189,22 +188,61 @@ function Camera({ city }: { city: City }) {
   )
 }
 
-/** Landing page: a slow orbit around the city, no input. */
+/**
+ * Landing page: no input. A slow orbit on the wide beats, and a glide to
+ * whichever building the story is talking about on the close ones. The
+ * city is kept toward the right half; the copy sits on the left.
+ */
 function HeroCamera({ city }: { city: City }) {
   const ref = useRef<CameraControlsImpl>(null!)
+  const beat = useStory((s) => s.beat)
+  const heightScale = useStore((s) => s.heightScale)
   const { cx, cz, size } = cityBounds(city)
+  const kind = BEATS[beat]
+  const wide = kind == null || kind === 'hero' || kind === 'time' || kind === 'departure'
+  const placed = useRef(false)
+
   useEffect(() => {
     const c = ref.current
     if (!c) return
-    void c.setLookAt(cx + size * 0.36, size * 0.16, cz + size * 0.5, cx, size * 0.05, cz, false)
-    // Push the city toward the right half; the headline sits on the left.
-    void c.setFocalOffset(-size * 0.2, size * 0.03, 0, false)
-  }, [cx, cz, size])
+    // The first placement is a cut; every later one is a glide.
+    const smooth = placed.current && !reducedMotion()
+    placed.current = true
+    const tl = timelineFor(city)
+    const targets = storyTargets(city)
+    const file = kind === 'buildings' ? targets.tallest : kind === 'hotspots' ? targets.fire : kind === 'bridges' ? targets.pair?.a : null
+    const partner = kind === 'bridges' ? targets.pair?.b : null
+    const f = file == null ? undefined : city.files[file]
+    if (!f) {
+      void c.setLookAt(cx + size * 0.36, size * 0.16, cz + size * 0.5, cx, size * 0.05, cz, smooth)
+      void c.setFocalOffset(-size * 0.2, size * 0.03, 0, smooth)
+      return
+    }
+    const last = Math.max(0, city.timeline.keyframes.length - 1)
+    const h = height(linesAt(tl, f.id, last), heightScale, city.stats.maxLines)
+    let tx = f.x + f.w / 2
+    let tz = f.z + f.d / 2
+    let dist = Math.max(18, h * 2.6, Math.max(f.w, f.d) * 7)
+    const p = partner == null ? undefined : city.files[partner]
+    if (p) {
+      // Frame both ends of the bridge.
+      const px = p.x + p.w / 2
+      const pz = p.z + p.d / 2
+      dist = Math.max(dist, Math.hypot(px - tx, pz - tz) * 1.4)
+      tx = (tx + px) / 2
+      tz = (tz + pz) / 2
+    } else if (kind === 'hotspots') {
+      dist *= 1.5
+    }
+    void c.setLookAt(tx + dist * 0.7, h * 0.5 + dist * 0.5, tz + dist * 0.85, tx, h * 0.4, tz, smooth)
+    void c.setFocalOffset(-dist * 0.28, 0, 0, smooth)
+  }, [beat, city, cx, cz, size, heightScale])
+
   useFrame((_, dt) => {
     const c = ref.current
     if (!c) return
-    c.azimuthAngle += dt * 0.05
+    if (wide) c.azimuthAngle += dt * 0.05
     c.update(dt)
   })
-  return <CameraControls ref={ref} enabled={false} smoothTime={0} />
+  return <CameraControls ref={ref} enabled={false} smoothTime={1.1} />
 }

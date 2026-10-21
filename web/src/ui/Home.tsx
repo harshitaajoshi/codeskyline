@@ -1,9 +1,12 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { fetchGallery, requestAnalysis, subscribeJob, type GalleryEntry, type JobState } from '../city/api'
 import { SAMPLES, loadSample } from '../city/load'
 import { formatNum } from '../city/scales'
+import { timeAt } from '../city/timeline'
 import type { City } from '../city/types'
 import { Scene } from '../scene/Scene'
+import { useStore } from '../store'
+import { BEATS, storyTargets, useStory, type Beat, type StoryTargets } from '../story'
 import { Wordmark } from './Wordmark'
 
 const STAGE_COPY: Record<string, string> = {
@@ -34,11 +37,26 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
   const [gallery, setGallery] = useState<GalleryEntry[]>([])
   const [hero, setHero] = useState<City | null>(null)
   const input = useRef<HTMLInputElement>(null)
+  const scroller = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     void fetchGallery().then(setGallery)
     loadSample(SAMPLES[0]!.id).then(setHero, () => {})
   }, [])
+
+  // The hero city lives in the store so the scene follows the story below.
+  useEffect(() => {
+    if (!hero) return
+    useStore.getState().setCity(hero)
+    return () => {
+      const s = useStore.getState()
+      s.select(null)
+      s.setMode('churn')
+      s.setShowCoupling(true)
+      s.setSimulateAuthor(null)
+      useStory.getState().set(0, 0)
+    }
+  }, [hero])
 
   useEffect(() => {
     if (!job || job.status === 'ready' || job.status === 'error') return
@@ -69,13 +87,19 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
     }
   }
 
+  const toTop = () => {
+    scroller.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    setTimeout(() => input.current?.focus(), 500)
+  }
+
   return (
-    <div className="absolute inset-0 overflow-auto text-ivory">
+    <div ref={scroller} className="absolute inset-0 overflow-auto text-ivory">
       {/* The live city, pushed to the right; the left column stays legible. */}
       <div className="pointer-events-none fixed inset-0">
         {hero && <Scene city={hero} hero />}
         <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(5,7,13,0.92)_0%,rgba(5,7,13,0.72)_38%,rgba(5,7,13,0.15)_70%,rgba(5,7,13,0.35)_100%)]" />
         <div className="absolute inset-x-0 bottom-0 h-64 bg-gradient-to-b from-transparent to-bg" />
+        {hero && <HeroTag city={hero} />}
       </div>
 
       <div className="relative">
@@ -178,35 +202,22 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
                 )}
               </div>
             )}
+
+            <div className="rise text-ivory/35 mt-16 font-mono text-[10.5px] tracking-[0.22em] uppercase" style={{ animationDelay: '0.7s' }}>
+              Scroll to read the city
+            </div>
           </div>
         </section>
 
-        {/* Legend */}
-        <section id="legend" className="mx-auto max-w-6xl scroll-mt-10 px-6 pb-8">
-          <div className="hairline flex items-end justify-between border-b pb-3">
-            <h2 className="font-display text-[26px] uppercase">How to read a city</h2>
-            <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">(04) Legend</span>
-          </div>
-          <ol className="grid gap-x-10 gap-y-10 pt-10 sm:grid-cols-2 lg:grid-cols-4">
-            {LEGEND.map((l, i) => (
-              <li key={l.title} className="group">
-                <div className="text-ivory/45 flex items-center justify-between font-mono text-xs">
-                  <span>({String(i + 1).padStart(2, '0')})</span>
-                  <l.Glyph />
-                </div>
-                <div className="font-display mt-4 text-[19px] leading-tight uppercase">{l.title}</div>
-                <p className="text-ivory/60 mt-2 text-sm leading-relaxed">{l.body}</p>
-              </li>
-            ))}
-          </ol>
-        </section>
+        {/* The story: the city behind demonstrates one thing per beat. */}
+        <Story city={hero} scroller={scroller} onDone={toTop} />
 
         {/* Recently built */}
         {gallery.length > 0 && (
           <section className="mx-auto max-w-6xl px-6 pt-20 pb-8">
             <div className="hairline flex items-end justify-between border-b pb-3">
               <h2 className="font-display text-[26px] uppercase">Recently built</h2>
-              <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">(05) {gallery.length} cities</span>
+              <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">(07) {gallery.length} cities</span>
             </div>
             <ul className="divide-ivory/10 divide-y">
               {gallery.map((g) => (
@@ -246,50 +257,249 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
   )
 }
 
-/* Line-drawn glyphs: one stroke weight, no fills, no emoji. */
-const stroke = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.25, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+/* ---------------------------------------------------------------------- */
 
-const LEGEND = [
-  {
-    title: 'Files are buildings',
-    body: 'Height is lines of code. Windows light up where work is happening right now, and go dark where it stopped.',
-    Glyph: () => (
-      <svg width="40" height="28" viewBox="0 0 40 28" {...stroke}>
-        <path d="M3 27V13h8v14M15 27V4h10v23M29 27V9h8v18" />
-        <path d="M6 17h2M6 21h2M18 8h4M18 12h4M18 16h4M32 13h2M32 17h2" strokeWidth="1" />
-      </svg>
+interface Block {
+  kind: Exclude<Beat, 'hero'>
+  index: string
+  label: string
+  title: React.ReactNode
+  body: React.ReactNode
+  stat?: React.ReactNode
+}
+
+function shortName(path: string) {
+  return path.slice(path.lastIndexOf('/') + 1)
+}
+
+function authorName(city: City, i: number) {
+  const a = city.authors[i]
+  return a ? (a.login ? `@${a.login}` : a.name) : 'someone'
+}
+
+/** Copy for each beat, written from the hero city's own numbers. */
+function blocksFor(city: City | null): Block[] {
+  const t = city ? storyTargets(city) : null
+  const tall = t?.tallest != null ? city!.files[t.tallest] : undefined
+  const fire = t?.fire != null ? city!.files[t.fire] : undefined
+  const a = t?.pair ? city!.files[t.pair.a] : undefined
+  const b = t?.pair ? city!.files[t.pair.b] : undefined
+  const years = city ? Math.max(1, Math.round((city.repo.lastCommit - city.repo.firstCommit) / (365 * 86400))) : 0
+  return [
+    {
+      kind: 'buildings',
+      index: '01',
+      label: 'Files are buildings',
+      title: (
+        <>
+          Height is <em className="font-serif text-amber normal-case italic">lines.</em>
+        </>
+      ),
+      body: 'Every file is a building and every folder a district, laid out along the directory tree. Windows light up where work is happening right now and go dark where it stopped.',
+      stat: tall ? `${tall.path} is the tallest, at ${formatNum(tall.lines)} lines` : undefined,
+    },
+    {
+      kind: 'hotspots',
+      index: '02',
+      label: 'Hotspots burn',
+      title: (
+        <>
+          Some buildings are <em className="font-serif text-amber normal-case italic">on fire.</em>
+        </>
+      ),
+      body: 'They change constantly and they are complex: the two things that predict where bugs get fixed next. Measured on twelve repositories, the top twenty catch 70% of next year’s fixes.',
+      stat: fire && t ? `${t.burning} burning · ${fire.path}: ${formatNum(fire.commits)} commits, ${fire.bugFixes} bug fixes` : undefined,
+    },
+    {
+      kind: 'bridges',
+      index: '03',
+      label: 'Hidden dependencies',
+      title: (
+        <>
+          Change one, and the other <em className="font-serif text-amber normal-case italic">follows.</em>
+        </>
+      ),
+      body: 'Two buildings are bridged when they keep changing in the same commits, even though nothing imports one from the other. The bridges come from the log alone; no parser could find them.',
+      stat: a && b && t?.pair ? `${shortName(a.path)} and ${shortName(b.path)}: together in ${t.pair.support} commits, ${Math.round(t.pair.confidence * 100)}% of the time` : undefined,
+    },
+    {
+      kind: 'time',
+      index: '04',
+      label: 'Time travels',
+      title: city ? <LiveDate city={city} /> : 'Keep scrolling.',
+      body: `Keep scrolling and the city rebuilds itself commit by commit. ${years ? `${years} years and ${formatNum(city!.repo.commits)} commits` : 'The whole history'}, replayed on the GPU, so it stays smooth at fifty thousand buildings.`,
+    },
+    departureBlock(city, t),
+  ]
+}
+
+/**
+ * The last beat is whichever is more striking for this city: one person's
+ * departure, or how much of it is already a ghost town.
+ */
+function departureBlock(city: City | null, t: StoryTargets | null): Block {
+  const dep = t?.departure ?? null
+  if (city && dep && dep.lost.size / dep.total >= 0.05) {
+    return {
+      kind: 'departure',
+      index: '05',
+      label: 'If someone left',
+      title: (
+        <>
+          If {authorName(city, dep.author)} <em className="font-serif text-amber normal-case italic">left.</em>
+        </>
+      ),
+      body: 'Every building goes dark whose only remaining active owner is that person. Owners who have not committed in a year do not count. This is the bus factor you can see.',
+      stat: `${dep.lost.size} files would have no active owner, ${Math.round((dep.lost.size / dep.total) * 100)}% of the live codebase`,
+    }
+  }
+  const pct = t && t.alive ? Math.round((t.ghosts / t.alive) * 100) : 0
+  return {
+    kind: 'departure',
+    index: '05',
+    label: 'Who still knows this',
+    title: (
+      <>
+        Most of it is a <em className="font-serif text-amber normal-case italic">ghost town.</em>
+      </>
     ),
-  },
-  {
-    title: 'Folders are districts',
-    body: 'Streets follow the directory tree, so the layout is the architecture. Nothing is placed arbitrarily.',
-    Glyph: () => (
-      <svg width="40" height="28" viewBox="0 0 40 28" {...stroke}>
-        <rect x="2" y="2" width="36" height="24" rx="1" />
-        <path d="M2 14h20M22 2v24M30 2v24M2 8h20M22 20h16" strokeWidth="1" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Hotspots burn',
-    body: 'Files that change often and are complex. Measured on twelve repositories, the top twenty catch 70% of the files that need fixes next year.',
-    Glyph: () => (
-      <svg width="40" height="28" viewBox="0 0 40 28" {...stroke}>
-        <path d="M14 27V12h12v15" />
-        <path d="M20 11c-4-3-3-7 0-10 1 3 4 3 4 6s-1 4-4 4Z" />
-        <path d="M20 11c-1.5-1-1.5-3 0-4 .5 1.5 1.5 1.5 1.5 2.5" strokeWidth="1" />
-      </svg>
-    ),
-  },
-  {
-    title: 'Time travels',
-    body: 'Scrub the timeline and the city rebuilds itself commit by commit, on the GPU, so it stays smooth at fifty thousand buildings.',
-    Glyph: () => (
-      <svg width="40" height="28" viewBox="0 0 40 28" {...stroke}>
-        <path d="M2 22h36" />
-        <path d="M6 22V16M14 22V10M22 22V6M30 22V12M36 22V3" strokeWidth="1" />
-        <circle cx="22" cy="22" r="2" fill="currentColor" stroke="none" />
-      </svg>
-    ),
-  },
-]
+    body: 'Colored by owner, a building goes dark when nobody who wrote it is still active and nobody has touched it in a year. Click a person in the Owners lens to simulate them leaving.',
+    stat: t ? `${t.ghosts} files, ${pct}% of the live codebase, have no active owner left` : undefined,
+  }
+}
+
+function Story({ city, scroller, onDone }: { city: City | null; scroller: React.RefObject<HTMLDivElement | null>; onDone: () => void }) {
+  const beat = useStory((s) => s.beat)
+  const refs = useRef<(HTMLElement | null)[]>([])
+  const blocks = useMemo(() => blocksFor(city), [city])
+
+  // Which block spans the middle of the viewport, and how far through it.
+  useEffect(() => {
+    const el = scroller.current
+    if (!el) return
+    let raf = 0
+    const update = () => {
+      raf = 0
+      const mid = el.clientHeight * 0.5
+      let b = 0
+      let p = 0
+      refs.current.forEach((node, i) => {
+        if (!node) return
+        const r = node.getBoundingClientRect()
+        if (r.top <= mid) {
+          b = i + 1
+          p = Math.min(1, Math.max(0, (mid - r.top) / r.height))
+        }
+      })
+      useStory.getState().set(b, p)
+    }
+    const onScroll = () => {
+      if (!raf) raf = requestAnimationFrame(update)
+    }
+    update()
+    el.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    return () => {
+      el.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [scroller, city])
+
+  // The city reacts: lens, selection, bridges, time and the departure sim.
+  useEffect(() => {
+    if (!city) return
+    const t = storyTargets(city)
+    const last = Math.max(0, city.timeline.keyframes.length - 1)
+    const apply = (b: number, p: number) => {
+      const s = useStore.getState()
+      if (s.city !== city) return
+      const kind = BEATS[b] ?? 'hero'
+      if (kind === 'time') s.setT(p * last)
+      else if (s.t !== last) s.goLive()
+      const sim = kind === 'departure' && t.departure && t.departure.lost.size / t.departure.total >= 0.05 ? t.departure.author : null
+      if (s.simulateAuthor !== sim) s.setSimulateAuthor(sim)
+      if (s.showCoupling !== (kind === 'bridges')) s.setShowCoupling(kind === 'bridges')
+      const mode = kind === 'hotspots' ? 'hotspots' : kind === 'time' ? 'activity' : kind === 'departure' ? 'owners' : 'churn'
+      if (s.mode !== mode) s.setMode(mode)
+      const sel = kind === 'buildings' ? t.tallest : kind === 'hotspots' ? t.fire : kind === 'bridges' ? (t.pair?.a ?? null) : null
+      if (s.selected !== sel) s.select(sel)
+    }
+    const st = useStory.getState()
+    apply(st.beat, st.progress)
+    return useStory.subscribe((n) => apply(n.beat, n.progress))
+  }, [city])
+
+  return (
+    <section className="mx-auto max-w-6xl px-6">
+      {blocks.map((blk, i) => {
+        const active = beat === i + 1
+        return (
+          <article
+            key={blk.kind}
+            ref={(n) => {
+              refs.current[i] = n
+            }}
+            className={`flex min-h-[90vh] items-center transition-opacity duration-500 ${active ? 'opacity-100' : 'opacity-25'}`}
+          >
+            <div className="max-w-lg">
+              <div className="text-ivory/55 font-mono text-xs tracking-[0.22em] uppercase">
+                ({blk.index}) {blk.label}
+              </div>
+              <h2 className="font-display mt-5 text-[clamp(2.2rem,4.4vw,3.6rem)] leading-[1] font-semibold uppercase">{blk.title}</h2>
+              <p className="text-ivory/65 mt-6 max-w-md text-[15.5px] leading-relaxed">{blk.body}</p>
+              {blk.stat && <div className="text-amber mt-5 font-mono text-[12px] leading-relaxed">{blk.stat}</div>}
+            </div>
+          </article>
+        )
+      })}
+
+      {/* Past the last beat the city returns to now, as the reader first saw it. */}
+      <article
+        ref={(n) => {
+          refs.current[blocks.length] = n
+        }}
+        className="flex min-h-[60vh] items-center"
+      >
+        <div className="max-w-lg">
+          <div className="text-ivory/55 font-mono text-xs tracking-[0.22em] uppercase">(06) Your turn</div>
+          <h2 className="font-display mt-5 text-[clamp(2.2rem,4.4vw,3.6rem)] leading-[1] font-semibold uppercase">
+            Now read <em className="font-serif text-amber normal-case italic">yours.</em>
+          </h2>
+          <p className="text-ivory/65 mt-6 max-w-md text-[15.5px] leading-relaxed">
+            Any public GitHub repository, built in about a minute from its commit history. Nothing is uploaded; the analyzer only reads the log.
+          </p>
+          <button onClick={onDone} className="lnk text-amber mt-6 font-mono text-[11px] tracking-[0.16em] uppercase">
+            Paste a repository ↑
+          </button>
+        </div>
+      </article>
+    </section>
+  )
+}
+
+/** The timeline date, live while the time beat scrubs. */
+function LiveDate({ city }: { city: City }) {
+  const t = useStore((s) => s.t)
+  const date = new Date(timeAt(city, t) * 1000)
+  return (
+    <span className="tabular-nums">
+      {date.toLocaleDateString(undefined, { month: 'long' })} <em className="font-serif text-amber normal-case italic">{date.getFullYear()}.</em>
+    </span>
+  )
+}
+
+/** Name tag over the building the story points at. */
+function HeroTag({ city }: { city: City }) {
+  const selected = useStore((s) => s.selected)
+  const m = useStore((s) => s.markerScreen)
+  if (selected == null || !m.visible) return null
+  const f = city.files[selected]
+  if (!f) return null
+  return (
+    <div className="txt absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center" style={{ left: m.x, top: m.y }}>
+      <div className="font-mono text-[12.5px] whitespace-nowrap">{shortName(f.path)}</div>
+      <span className="bg-amber mt-1.5 h-5 w-px" />
+    </div>
+  )
+}

@@ -93,11 +93,11 @@ interface Particle {
  * smoke puffs rising above them, as camera-facing quads. Everything animates
  * in the shader from a single time uniform.
  */
-export function Flames({ city, timeline, fixedK }: { city: City; timeline: TimelineData; fixedK?: number }) {
+export function Flames({ city, timeline }: { city: City; timeline: TimelineData }) {
   const heightScale = useStore((s) => s.heightScale)
   const hideGenerated = useStore((s) => s.hideGenerated)
   const storeK = useStore((s) => s.k)
-  const k = fixedK ?? storeK
+  const k = storeK
 
   const { flames, smoke } = useMemo(() => {
     const flames: Particle[] = []

@@ -64,6 +64,11 @@ try {
   await send('Emulation.setDeviceMetricsOverride', { width: +width, height: +height, deviceScaleFactor: 1, mobile: false })
   await send('Page.navigate', { url })
   await sleep(+waitMs)
+  // SHOT_JS="..." runs in the page before capture (scroll, click), then settles.
+  if (process.env.SHOT_JS) {
+    await send('Runtime.evaluate', { expression: process.env.SHOT_JS, awaitPromise: true })
+    await sleep(+(process.env.SHOT_SETTLE ?? 2500))
+  }
   const shot = await send('Page.captureScreenshot', { format: 'png' })
   writeFileSync(out, Buffer.from(shot.data, 'base64'))
   console.log(`saved ${out}`)

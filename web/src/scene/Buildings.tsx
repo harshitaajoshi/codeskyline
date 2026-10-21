@@ -27,12 +27,10 @@ export function Buildings({
   city,
   timeline,
   interactive = true,
-  fixedK,
 }: {
   city: City
   timeline: TimelineData
   interactive?: boolean
-  fixedK?: number
 }) {
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const mode = useStore((s) => s.mode)
@@ -42,7 +40,7 @@ export function Buildings({
   const selected = useStore((s) => s.selected)
   const storeK = useStore((s) => s.k)
   const showCoupling = useStore((s) => s.showCoupling)
-  const k = fixedK ?? storeK
+  const k = storeK
   const hover = useStore((s) => s.hover)
   const select = useStore((s) => s.select)
 
@@ -124,7 +122,7 @@ export function Buildings({
   }, [uniforms, mode, heightScale])
 
   useFrame(() => {
-    uniforms.uT.value = fixedK ?? useStore.getState().t
+    uniforms.uT.value = useStore.getState().t
   })
 
   // --- instance geometry ---------------------------------------------------

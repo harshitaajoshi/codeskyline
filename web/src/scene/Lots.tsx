@@ -14,12 +14,12 @@ const DELETED = new THREE.Color('#6e1f26') // diff lens: a file this change remo
  * remains as a dark footprint, so the present-day city shows the outline of
  * what used to be there. In the diff lens, lots of deleted files turn red.
  */
-export function Lots({ city, timeline, fixedK }: { city: City; timeline: TimelineData; fixedK?: number }) {
+export function Lots({ city, timeline }: { city: City; timeline: TimelineData }) {
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const hideGenerated = useStore((s) => s.hideGenerated)
   const mode = useStore((s) => s.mode)
   const storeK = useStore((s) => s.k)
-  const k = fixedK ?? storeK
+  const k = storeK
   const material = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 1 }), [])
   const deletedIds = useMemo(() => new Set((city.diff?.files ?? []).filter((d) => d.status === 'deleted').map((d) => d.id)), [city])
 

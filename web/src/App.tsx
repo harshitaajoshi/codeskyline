@@ -71,7 +71,9 @@ export function App() {
   )
 
   const onOpen = useCallback((owner: string, name: string, sha?: string) => navigate(`/r/${owner}/${name}${sha ? `?sha=${sha}` : ''}`), [navigate])
-  const showCity = route.kind !== 'home' && city
+  // The landing page parks its hero city in the store too, so a route needs
+  // its own load to have finished before the interactive scene mounts.
+  const showCity = route.kind !== 'home' && city && status === 'ready'
 
   return (
     <div
@@ -96,7 +98,7 @@ export function App() {
       {route.kind === 'home' && <Home onOpen={onOpen} onSample={(id) => navigate(`/?sample=${id}`)} />}
       <input ref={fileInput} type="file" accept=".json" className="hidden" onChange={(e) => void openFiles(e.target.files)} />
 
-      {route.kind !== 'home' && status === 'loading' && !city && <Center>Building the city…</Center>}
+      {route.kind !== 'home' && status === 'loading' && <Center>Building the city…</Center>}
       {route.kind !== 'home' && status === 'error' && (
         <Center>
           <div className="text-center">

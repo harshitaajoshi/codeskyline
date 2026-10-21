@@ -56,3 +56,14 @@ export function simulateDeparture(city: City, author: number): DepartureImpact {
     .slice(0, 4)
   return { author, lost, total, districts }
 }
+
+/** The active human whose departure would orphan the most files, if any. */
+export function worstDeparture(city: City): DepartureImpact | null {
+  const active = [...activeAuthors(city)].filter((i) => !/\[bot\]|dependabot|renovate/i.test(city.authors[i]!.name))
+  let worst: DepartureImpact | null = null
+  for (const a of active.slice(0, 40)) {
+    const r = simulateDeparture(city, a)
+    if (r.lost.size > 0 && (!worst || r.lost.size > worst.lost.size)) worst = r
+  }
+  return worst && worst.total > 0 ? worst : null
+}
