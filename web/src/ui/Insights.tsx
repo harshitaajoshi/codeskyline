@@ -5,9 +5,8 @@ import { formatNum } from '../city/scales'
 import type { City } from '../city/types'
 import { Glyph } from './glyphs'
 
-type Insight = {
+export type Insight = {
   key: string
-  Icon: (p: React.SVGProps<SVGSVGElement>) => React.JSX.Element
   tone?: 'fire' | 'amber'
   title: string
   detail: string
@@ -16,8 +15,8 @@ type Insight = {
 }
 
 /**
- * What the analysis found, as sentences you can click. This is the front
- * door to every feature: each row demonstrates itself.
+ * What the analysis found, as an indexed list. Each entry demonstrates
+ * itself; this is the front door to every feature.
  */
 export function Insights({ city }: { city: City }) {
   const selected = useStore((s) => s.selected)
@@ -28,38 +27,36 @@ export function Insights({ city }: { city: City }) {
   if (selected != null) return null
   if (!open)
     return (
-      <button onClick={() => setOpen(true)} className="glass btn rise pointer-events-auto absolute top-[68px] right-4 h-10 rounded-full pr-4">
-        <Glyph.hotspots /> <span className="label">insights</span>
+      <button onClick={() => setOpen(true)} className="rise txt lnk text-ivory/55 hover:text-ivory pointer-events-auto absolute top-[4.5rem] right-6 font-mono text-[10.5px] tracking-[0.16em] uppercase">
+        {insights.length} findings
       </button>
     )
   return (
-    <div className="glass rise pointer-events-auto absolute top-[68px] right-4 max-h-[calc(100vh-14rem)] w-[20rem] overflow-y-auto" style={{ animationDelay: '0.15s' }}>
-      <div className="flex items-center justify-between px-4 pt-3 pb-1">
+    <section className="region rise pointer-events-auto absolute top-[4.25rem] right-6 max-h-[calc(100vh-13rem)] w-[21rem] overflow-y-auto px-5 pt-3 pb-4 [scrollbar-width:none]" style={{ animationDelay: '0.2s' }}>
+      <header className="flex items-center justify-between">
         <span className="label">Findings</span>
         <button className="text-ivory/35 hover:text-ivory transition" onClick={() => setOpen(false)} aria-label="collapse">
-          <Glyph.chevron width={11} height={11} />
+          <Glyph.close width={11} height={11} />
         </button>
-      </div>
-      <ul className="divide-ivory/[0.06] divide-y px-2 pb-2">
-        {insights.map((i) => (
-          <li key={i.key}>
-            <button onClick={i.run} className="group flex w-full items-start gap-3 rounded-lg px-2 py-3 text-left transition-colors hover:bg-ivory/[0.035]">
-              <span className={`mt-[3px] shrink-0 ${i.tone === 'fire' ? 'text-fire' : 'text-amber'}`}>
-                <i.Icon width={15} height={15} />
-              </span>
+      </header>
+      <ol className="mt-2">
+        {insights.map((i, n) => (
+          <li key={i.key} className="rule">
+            <button onClick={i.run} className="group flex w-full items-start gap-4 py-3.5 text-left">
+              <span className="idx mt-[5px] w-5 shrink-0">{String(n + 1).padStart(2, '0')}</span>
               <span className="min-w-0 flex-1">
-                <span className="block text-[13px] leading-[1.35]">{i.title}</span>
-                <span className="text-ivory/45 mt-0.5 line-clamp-2 text-[11.5px] leading-[1.4]">{i.detail}</span>
-              </span>
-              <span className="text-ivory/35 group-hover:text-amber mt-1 shrink-0 transition">
-                <Glyph.chevron width={11} height={11} />
+                <span className={`font-display block text-[17px] leading-[1.2] ${i.tone === 'fire' ? 'text-fire' : 'text-ivory'}`}>{i.title}</span>
+                <span className="text-ivory/50 mt-1 line-clamp-2 text-[11.5px] leading-[1.45]">{i.detail}</span>
+                <span className="text-amber/80 group-hover:text-amber mt-1.5 inline-block font-mono text-[10.5px] tracking-[0.14em] uppercase transition">
+                  {i.action} <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>
+                </span>
               </span>
             </button>
           </li>
         ))}
-        {insights.length === 0 && <li className="text-ivory/45 px-3 py-3 text-[12px]">Nothing stands out in this repository's history.</li>}
-      </ul>
-    </div>
+        {insights.length === 0 && <li className="text-ivory/45 py-3 text-[12px]">Nothing stands out in this repository's history.</li>}
+      </ol>
+    </section>
   )
 }
 
@@ -72,22 +69,20 @@ function authorName(city: City, i: number) {
   return a ? (a.login ? `@${a.login}` : a.name) : 'someone'
 }
 
-function buildInsights(city: City): Insight[] {
+export function buildInsights(city: City): Insight[] {
   const s = useStore.getState
   const out: Insight[] = []
   const alive = city.files.filter((f) => !f.removed && !f.generated && !f.vendored && !f.binary)
 
-  // 1. Fire.
   const burning = alive.filter((f) => f.fire > 0).sort((a, b) => b.fire - a.fire || b.hotspot - a.hotspot)
   if (burning[0]) {
     const top = burning[0]
     out.push({
       key: 'fire',
-      Icon: Glyph.hotspots,
       tone: 'fire',
       title: `${burning.length} building${burning.length === 1 ? ' is' : 's are'} on fire`,
-      detail: `${top.path} changes most and is complex: ${formatNum(top.commits)} commits, ${top.bugFixes} bug fixes`,
-      action: 'fly to the hottest',
+      detail: `${top.path} changes the most and is complex: ${formatNum(top.commits)} commits, ${top.bugFixes} bug fixes.`,
+      action: 'Fly there',
       run: () => {
         s().setMode('hotspots')
         s().select(top.id, true)
@@ -95,17 +90,15 @@ function buildInsights(city: City): Insight[] {
     })
   }
 
-  // 2. Coupling.
   const c0 = city.couplings[0]
   if (c0) {
     const a = city.files[c0.a]!
     const b = city.files[c0.b]!
     out.push({
       key: 'coupling',
-      Icon: Glyph.churn,
-      title: `Change ${shortName(a.path)} and you will probably change ${shortName(b.path)}`,
-      detail: `They were edited in the same commit ${c0.support} times, ${Math.round(c0.confidence * 100)}% of the time, with no import between them. ${city.couplings.length} hidden dependencies like this; a PR that touches one side without the other gets flagged.`,
-      action: 'show what it drags along',
+      title: `Change ${shortName(a.path)}, and ${shortName(b.path)} usually changes too`,
+      detail: `Edited in the same commit ${c0.support} times, ${Math.round(c0.confidence * 100)}% of the time, with no import between them. ${city.couplings.length} hidden dependencies like this.`,
+      action: 'Show what it drags along',
       run: () => {
         s().setShowCoupling(true)
         s().select(c0.a, true)
@@ -113,7 +106,6 @@ function buildInsights(city: City): Insight[] {
     })
   }
 
-  // 3. Knowledge risk: the active person whose departure would hurt most.
   const active = [...activeAuthors(city)].filter((i) => !/\[bot\]|dependabot|renovate/i.test(city.authors[i]!.name))
   let worst: { author: number; lost: number; total: number } | null = null
   for (const a of active.slice(0, 40)) {
@@ -123,11 +115,10 @@ function buildInsights(city: City): Insight[] {
   if (worst && worst.total > 0) {
     out.push({
       key: 'departure',
-      Icon: Glyph.owners,
       tone: worst.lost / worst.total > 0.2 ? 'fire' : 'amber',
       title: `If ${authorName(city, worst.author)} left, ${worst.lost} file${worst.lost === 1 ? '' : 's'} would have no active owner`,
-      detail: `${Math.round((worst.lost / worst.total) * 100)}% of the live codebase. Knowledge decays: owners who have not committed in a year do not count.`,
-      action: 'simulate it',
+      detail: `${Math.round((worst.lost / worst.total) * 100)}% of the live codebase. Owners who have not committed in a year do not count.`,
+      action: 'Simulate it',
       run: () => {
         s().setMode('owners')
         s().setSimulateAuthor(worst!.author)
@@ -135,33 +126,28 @@ function buildInsights(city: City): Insight[] {
     })
   }
 
-  // 4. Bus factor one.
   const bus1 = city.dirs.filter((d) => d.bus === 1 && d.files >= 5 && d.depth > 0).sort((a, b) => b.files - a.files)
   if (bus1[0]) {
     out.push({
       key: 'bus',
-      Icon: Glyph.owners,
       title: `${bus1[0].path} is held by one person`,
-      detail: `${bus1.length} district${bus1.length === 1 ? '' : 's'} with bus factor 1. Lose that person and most of the district has no active owner.`,
-      action: 'color by owner',
+      detail: `${bus1.length} district${bus1.length === 1 ? '' : 's'} with bus factor 1. Lose that person and most of it has no active owner.`,
+      action: 'Color by owner',
       run: () => s().setMode('owners'),
     })
   }
 
-  // 5. Ghost town.
   const ghosts = alive.filter((f) => f.ghost)
   if (ghosts.length >= Math.max(3, alive.length * 0.05)) {
     out.push({
       key: 'ghost',
-      Icon: Glyph.age,
       title: `${ghosts.length} files are a ghost town`,
       detail: `${Math.round((ghosts.length / alive.length) * 100)}% of the codebase: nobody who wrote them is still active, and nobody has touched them in a year.`,
-      action: 'show them dark',
+      action: 'Show them dark',
       run: () => s().setMode('owners'),
     })
   }
 
-  // 6. Story.
   const story = city.timeline.story ?? []
   const big = [...story].sort((a, b) => b.magnitude - a.magnitude)[0]
   if (big) {
@@ -169,10 +155,9 @@ function buildInsights(city: City): Insight[] {
     const when = kf ? new Date(kf.time * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''
     out.push({
       key: 'story',
-      Icon: Glyph.play,
       title: `${story.length} moments shaped this city`,
       detail: `${when}: ${big.title}. ${big.detail}.`,
-      action: 'jump there',
+      action: 'Jump there',
       run: () => {
         s().setPlaying(false)
         s().setT(big.k)
@@ -181,15 +166,13 @@ function buildInsights(city: City): Insight[] {
     })
   }
 
-  // 7. Time travel.
   if (city.timeline.keyframes.length > 10) {
     const years = Math.max(1, Math.round((city.repo.lastCommit - city.repo.firstCommit) / (365 * 86400)))
     out.push({
       key: 'play',
-      Icon: Glyph.play,
       title: `Watch ${years} year${years === 1 ? '' : 's'} of commits build it`,
-      detail: `${formatNum(city.repo.commits)} commits by ${city.authors.length} people, replayed in about 20 seconds.`,
-      action: 'play from the beginning',
+      detail: `${formatNum(city.repo.commits)} commits by ${city.authors.length} people, replayed in about twenty seconds.`,
+      action: 'Play from the beginning',
       run: () => {
         s().setMode('activity')
         s().setT(0)
@@ -198,14 +181,12 @@ function buildInsights(city: City): Insight[] {
     })
   }
 
-  // 8. Diff.
   if (city.diff) {
     out.unshift({
       key: 'diff',
-      Icon: Glyph.churn,
       title: `This change touches ${city.diff.files.length} files`,
       detail: `${city.diff.files.filter((d) => d.status === 'added').length} added, ${city.diff.files.filter((d) => d.status === 'deleted').length} deleted. Hotspots among them are the ones to review first.`,
-      action: 'show the diff',
+      action: 'Show the diff',
       run: () => s().setMode('diff'),
     })
   }

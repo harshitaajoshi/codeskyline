@@ -56,6 +56,47 @@ canvas {
   touch-action: none;
 }
 
+/* Regions: no card, no border. A faint gradient so type reads over lights, a
+   rule on top, air inside. The grid does the work. */
+.region {
+  background: linear-gradient(180deg, rgb(5 7 13 / 0.9) 0%, rgb(5 7 13 / 0.8) 100%);
+  border-top: 1px solid color-mix(in oklab, var(--color-ivory) 14%, transparent);
+}
+.region-up {
+  background: linear-gradient(0deg, rgb(5 7 13 / 0.92) 0%, rgb(5 7 13 / 0.72) 100%);
+  border-top: 1px solid color-mix(in oklab, var(--color-ivory) 14%, transparent);
+}
+.rule {
+  border-top: 1px solid color-mix(in oklab, var(--color-ivory) 10%, transparent);
+}
+.idx {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: color-mix(in oklab, var(--color-ivory) 32%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.txt {
+  text-shadow: 0 1px 2px rgb(0 0 0 / 0.8);
+}
+.lnk {
+  background-image: linear-gradient(currentColor, currentColor);
+  background-size: 0% 1px;
+  background-repeat: no-repeat;
+  background-position: 0 100%;
+  transition:
+    background-size 0.25s cubic-bezier(0.2, 0.7, 0.2, 1),
+    color 0.2s;
+  padding-bottom: 1px;
+}
+.lnk:hover,
+.lnk[data-active='true'] {
+  background-size: 100% 1px;
+}
+.scrim-top {
+  background: linear-gradient(180deg, rgb(5 7 13 / 0.7) 0%, transparent 100%);
+}
+
 /* Frosted glass, the one surface the HUD is built from. */
 .glass {
   background: color-mix(in oklab, #0b0e18 78%, transparent);
@@ -117,20 +158,17 @@ canvas {
   --p: 0%;
 }
 .scrub::-webkit-slider-runnable-track {
-  height: 2px;
-  border-radius: 1px;
-  background: linear-gradient(90deg, var(--color-amber) var(--p), color-mix(in oklab, var(--color-ivory) 18%, transparent) var(--p));
+  height: 1px;
+  background: linear-gradient(90deg, var(--color-amber) var(--p), color-mix(in oklab, var(--color-ivory) 20%, transparent) var(--p));
 }
 .scrub::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  margin-top: -6px;
+  width: 10px;
+  height: 10px;
+  margin-top: -4.5px;
   border-radius: 50%;
-  background: var(--color-ivory);
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--color-amber) 25%, transparent),
-    0 2px 6px rgb(0 0 0 / 0.5);
+  background: var(--color-amber);
+  box-shadow: 0 0 0 4px rgb(5 7 13 / 0.95);
   transition: transform 0.15s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .scrub:hover::-webkit-slider-thumb,

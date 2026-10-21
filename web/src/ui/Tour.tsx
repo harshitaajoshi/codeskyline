@@ -91,29 +91,24 @@ export function Tour({ city: _city }: { city: City }) {
     setStep(null)
   }
   return (
-    <div key={step} className={`glass rise text-ivory pointer-events-auto absolute z-20 w-[23rem] max-w-[90vw] p-5 ${s.place}`} style={{ animationDuration: '0.5s' }}>
+    <div key={step} className={`region rise text-ivory pointer-events-auto absolute z-20 w-[24rem] max-w-[90vw] px-5 pt-3 pb-4 ${s.place}`} style={{ animationDuration: '0.5s' }}>
       <div className="label">
         {String(step + 1).padStart(2, '0')} / {String(STEPS.length).padStart(2, '0')}
       </div>
       <div className="font-display mt-2 text-[22px] leading-tight">{s.title}</div>
-      <p className="text-ivory/65 mt-2 text-[13.5px] leading-relaxed">{s.body}</p>
-      <div className="mt-4 flex items-center justify-between">
-        <button className="text-ivory/45 hover:text-ivory font-mono text-[11.5px] transition" onClick={finish}>
+      <p className="text-ivory/65 mt-2 text-[13px] leading-relaxed">{s.body}</p>
+      <div className="mt-4 flex items-center gap-6 font-mono text-[10.5px] tracking-[0.14em] uppercase">
+        <button className="lnk text-amber" onClick={() => (step + 1 < STEPS.length ? setStep(step + 1) : finish())}>
+          {step + 1 < STEPS.length ? 'next' : 'explore'}
+        </button>
+        {step > 0 && (
+          <button className="lnk text-ivory/55 hover:text-ivory" onClick={() => setStep(step - 1)}>
+            back
+          </button>
+        )}
+        <button className="lnk text-ivory/40 hover:text-ivory" onClick={finish}>
           skip
         </button>
-        <div className="flex items-center gap-1">
-          {step > 0 && (
-            <button className="btn h-8 rounded-full px-3" onClick={() => setStep(step - 1)}>
-              Back
-            </button>
-          )}
-          <button
-            className="bg-amber text-bg h-8 rounded-full px-4 text-[12.5px] font-medium transition-transform hover:scale-[1.03] active:scale-95"
-            onClick={() => (step + 1 < STEPS.length ? setStep(step + 1) : finish())}
-          >
-            {step + 1 < STEPS.length ? 'Next' : 'Explore'}
-          </button>
-        </div>
       </div>
     </div>
   )
