@@ -5,6 +5,8 @@ import { useStore } from '../store'
 import { ACTIVITY, CHURN, FIRE, GHOST, GPU_MODE, GRAY, OWNER_SLOTS, fileColor, makeColorContext, paletteSlot, type RGB } from '../city/colors'
 import { height, type HeightScale } from '../city/scales'
 import { linesAt, type TimelineData } from '../city/timeline'
+import { simulateDeparture } from '../city/knowledge'
+import { partnersOf } from './Coupling'
 import type { City } from '../city/types'
 
 // Unit box with its origin at the base so scale.y is the building height.
@@ -12,6 +14,7 @@ const BOX = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
 const LOT_MARGIN = 0.12 // gap between a building and its lot edge
 
 const HOVER: RGB = [1, 1, 1]
+const PARTNER: RGB = [0.98, 0.84, 0.6] // coupled to the selection
 const SELECT: RGB = [0.95, 0.7, 0.42] // amber, matching the HUD accent
 const HEIGHT_MODE: Record<HeightScale, number> = { sqrt: 0, log: 1, linear: 2 }
 
@@ -38,6 +41,7 @@ export function Buildings({
   const hovered = useStore((s) => s.hovered)
   const selected = useStore((s) => s.selected)
   const storeK = useStore((s) => s.k)
+  const showCoupling = useStore((s) => s.showCoupling)
   const k = fixedK ?? storeK
   const hover = useStore((s) => s.hover)
   const select = useStore((s) => s.select)
@@ -90,6 +94,7 @@ export function Buildings({
       uPalette: { value: Array.from({ length: OWNER_SLOTS }, (_, i) => new THREE.Vector3(...paletteSlot(i))) },
       uGray: { value: new THREE.Vector3(...GRAY) },
       uGhost: { value: new THREE.Vector3(...GHOST) },
+      uLost: { value: new THREE.Vector3(0.42, 0.12, 0.14) }, // departure simulation: goes dark red
       uWindows: { value: 1 },
       uWindowBase: { value: 0.15 },
     }),
@@ -151,12 +156,19 @@ export function Buildings({
     m.computeBoundingSphere()
   }, [city, visible, heightScale, timeline, k])
 
-  // Static per-file flags the timeline textures do not carry: 1 = ghost.
+  // Per-file flags the timeline textures do not carry:
+  //   bit 1 = ghost town, bit 2 = would lose its last owner in the departure simulation.
+  const simulateAuthor = useStore((s) => s.simulateAuthor)
+  const lost = useMemo(() => (simulateAuthor == null ? null : simulateDeparture(city, simulateAuthor).lost), [city, simulateAuthor])
   const aFlags = useMemo(() => {
     const arr = new Float32Array(Math.max(1, city.files.length))
-    visible.forEach((fi, slot) => (arr[slot] = city.files[fi]!.ghost ? 1 : 0))
-    return new THREE.InstancedBufferAttribute(arr, 1)
-  }, [city, visible])
+    visible.forEach((fi, slot) => {
+      const f = city.files[fi]!
+      arr[slot] = (f.ghost ? 1 : 0) + (lost?.has(fi) ? 2 : 0)
+    })
+    const attr = new THREE.InstancedBufferAttribute(arr, 1)
+    return attr
+  }, [city, visible, lost])
 
   useEffect(() => {
     const m = mesh.current
@@ -195,12 +207,16 @@ export function Buildings({
       arr[slot * 3 + 2] = c[2]
       hl[slot] = flag
     }
+    // Files coupled to the selection light up with it (its blast radius).
+    if (selected != null && showCoupling) {
+      for (const p of partnersOf(city, selected)) paint(p.id, PARTNER, 3)
+    }
     paint(selected, SELECT, 2)
     paint(hovered, HOVER, 1)
     m.instanceColor.needsUpdate = true
     highlight.needsUpdate = true
     m.geometry.setAttribute('aHighlight', highlight)
-  }, [base, slotOf, hovered, selected, visible.length, highlight])
+  }, [base, slotOf, hovered, selected, visible.length, highlight, city, showCoupling])
 
   const onMove = (e: ThreeEvent<PointerEvent>) => {
     e.stopPropagation()
@@ -235,6 +251,7 @@ attribute float aFile;
 attribute float aHighlight;
 attribute float aFlags;
 uniform vec3 uGhost;
+uniform vec3 uLost;
 uniform sampler2D uLines;
 uniform sampler2D uMeta;
 uniform float uT;
@@ -324,7 +341,10 @@ if (uMode > 0 && aHighlight < 0.5) {
     int slot = int((csky_fr < 0.5 ? csky_m0.g : csky_m1.g) * 255.0 + 0.5);
     vColor.rgb = slot < ${OWNER_SLOTS} ? uPalette[slot] : uGray;
     // Ghost town: at the present day, files nobody active still owns go dark.
-    if (aFlags > 0.5 && csky_t >= float(uK - 1) - 0.001) vColor.rgb = uGhost;
+    int flags = int(aFlags + 0.5);
+    bool nowish = csky_t >= float(uK - 1) - 0.001;
+    if ((flags & 2) != 0) { vColor.rgb = uLost; vCskyEmissive = uLost * 0.6; }
+    else if ((flags & 1) != 0 && nowish) vColor.rgb = uGhost;
   }
 }
 #endif

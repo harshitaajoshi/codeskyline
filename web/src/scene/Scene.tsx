@@ -10,6 +10,7 @@ import { buildTimeline, linesAt, type TimelineData } from '../city/timeline'
 import { ownerSlots } from '../city/colors'
 import type { City } from '../city/types'
 import { Buildings } from './Buildings'
+import { Coupling } from './Coupling'
 import { Districts } from './Districts'
 import { Flames } from './Flames'
 import { Labels } from './Labels'
@@ -79,6 +80,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <Lots city={city} timeline={timeline} fixedK={fixedK} />
       <Buildings city={city} timeline={timeline} interactive={!hero} fixedK={fixedK} />
       <Flames city={city} timeline={timeline} fixedK={fixedK} />
+      {!hero && <Coupling city={city} timeline={timeline} />}
       <Suspense fallback={null}>
         <Labels city={city} />
       </Suspense>

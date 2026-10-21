@@ -24,6 +24,7 @@ type Options struct {
 	Name         string // display name, e.g. "facebook/react"
 	URL          string
 	Rev          string // commit to analyze; defaults to HEAD
+	DiffBase     string // when set, City.Diff describes Rev relative to this ref's merge base
 	MaxCommits   int    // cap on first-parent commits walked; 0 = all
 	Keyframes    int    // max timeline keyframes; defaults to 256
 	MaxFileBytes int64  // files larger than this are not read for counting
@@ -69,6 +70,8 @@ type fileAgg struct {
 	running, maxLines         int
 	binary                    bool
 	authors                   map[int]float64 // author index → decayed weight
+	alive                     bool
+	dist                      string // district (top two path segments) while alive
 
 	// timeline state
 	sinceKF    int     // commits since the previous keyframe
@@ -136,6 +139,16 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 		firstTime int64
 		keyframes []model.Keyframe
 		events    []int32
+
+		pairs      = metrics.NewPairCounter()
+		cur        = newInterval(0)
+		intervals  []*interval
+		dirFiles   = map[string]int{} // district → live files
+		dirMax     = map[string]int{}
+		dirSeen    = map[string]bool{} // announced as a new district
+		dirGone    = map[string]bool{}
+		dirTouched = map[string]bool{}
+		dirEvents  []districtEvent
 	)
 	ensure := func(p string) *fileAgg {
 		if a, ok := byPath[p]; ok {
@@ -163,6 +176,24 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 
 	snapshot := func(k int, c *gitlog.Commit, ai int) {
 		keyframes = append(keyframes, model.Keyframe{Index: commits - 1, Time: c.Time, Hash: c.Hash, Subject: truncate(c.Subject, 120), Author: ai})
+		// Close the interval and note districts that appeared or vanished.
+		cur.k, cur.time = k, c.Time
+		intervals = append(intervals, cur)
+		for d := range dirTouched {
+			if d == "" {
+				continue
+			}
+			if !dirSeen[d] && dirFiles[d] >= 8 {
+				dirSeen[d] = true
+				dirEvents = append(dirEvents, districtEvent{k: k, kind: "new", dir: d, n: dirFiles[d]})
+			}
+			if dirSeen[d] && !dirGone[d] && dirFiles[d] == 0 && dirMax[d] >= 8 {
+				dirGone[d] = true
+				dirEvents = append(dirEvents, districtEvent{k: k, kind: "gone", dir: d, n: dirMax[d]})
+			}
+		}
+		dirTouched = map[string]bool{}
+		cur = newInterval(k + 1)
 		// Hotspots ranked among files alive at this keyframe. Complexity is
 		// not known historically, so size stands in for it.
 		in := make([]metrics.HotspotInput, len(aggs))
@@ -222,6 +253,9 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 		// Decay relative to first commit; shares are normalized per file so
 		// the reference point cancels out and nothing can overflow.
 		w := math.Exp2(float64(c.Time-firstTime) / metrics.KnowledgeHalfLife)
+		cur.commits++
+		cur.authors[ai] = true
+		var touched []int // logical file ids changed together, for coupling
 
 		for _, ch := range c.Changes {
 			var a *fileAgg
@@ -245,6 +279,21 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 			a.deleted = ch.Status == 'D'
 			a.commits++
 			a.sinceKF++
+			// District population, for "new district" / "demolished" events.
+			nd := district(a.path)
+			if a.alive {
+				dirFiles[a.dist]--
+				dirTouched[a.dist] = true
+			}
+			a.alive = !a.deleted
+			a.dist = nd
+			if a.alive {
+				dirFiles[nd]++
+				if dirFiles[nd] > dirMax[nd] {
+					dirMax[nd] = dirFiles[nd]
+				}
+			}
+			dirTouched[nd] = true
 			a.ema = a.ema*math.Pow(0.5, float64(c.Time-a.emaT)/activityHalfLife) + 1
 			a.emaT = c.Time
 			if a.created == 0 || c.Time < a.created {
@@ -259,6 +308,11 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 			if ch.Binary {
 				a.binary = true
 			} else {
+				touched = append(touched, a.id)
+				cur.added += ch.Added
+				cur.deleted += ch.Deleted
+				cur.files[a.id] = true
+				cur.dirChurn[nd] += ch.Added + ch.Deleted
 				a.added += int64(ch.Added)
 				a.deleted_ += int64(ch.Deleted)
 				a.running += ch.Added - ch.Deleted
@@ -277,6 +331,7 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 				a.recentChurn += ch.Added + ch.Deleted
 			}
 		}
+		pairs.Add(touched)
 		if k := kfAt[min(commits-1, n-1)]; k >= 0 {
 			snapshot(k, c, ai)
 		}
@@ -438,6 +493,62 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 	}
 	events = sortEvents(events)
 
+	// --- Coupling, story, diff -------------------------------------------
+	opt.Progress("metrics", "mining co-changes")
+	minSupport := 3
+	if commits > 2000 {
+		minSupport = 4
+	}
+	eligibleAgg := func(id int) bool {
+		f := files[aggs[id].fileIdx]
+		return !f.Removed && !f.Generated && !f.Vendored && !f.Binary && f.Lines > 0
+	}
+	ranked := metrics.RankCouplings(pairs.Pairs(), func(id int) int { return aggs[id].commits }, eligibleAgg, minSupport, 0.35, 1500)
+	couplings := make([]model.Coupling, len(ranked))
+	for i, cp := range ranked {
+		couplings[i] = model.Coupling{A: aggs[cp.A].fileIdx, B: aggs[cp.B].fileIdx, Support: cp.Support, Confidence: math.Round(cp.Confidence*100) / 100}
+	}
+	story := detectEvents(intervals, dirEvents, authors, lastTime, 18)
+
+	var diff *model.Diff
+	if opt.DiffBase != "" {
+		base, err := r.Resolve(ctx, opt.DiffBase)
+		if err != nil {
+			return nil, fmt.Errorf("diff base: %w", err)
+		}
+		mb, err := r.MergeBase(ctx, base, head)
+		if err != nil {
+			return nil, err
+		}
+		entries, err := r.Diff(ctx, mb, head)
+		if err != nil {
+			return nil, err
+		}
+		live := map[string]int{}
+		gone := map[string]int{}
+		for i, f := range files {
+			if f.Removed {
+				gone[f.Path] = i
+			} else {
+				live[f.Path] = i
+			}
+		}
+		diff = &model.Diff{Base: mb, Head: head}
+		for _, e := range entries {
+			if e.Binary {
+				continue
+			}
+			idx, ok := live[e.Path]
+			if !ok {
+				idx, ok = gone[e.Path]
+			}
+			if !ok {
+				continue
+			}
+			diff.Files = append(diff.Files, model.DiffFile{ID: idx, Status: statusWord(e.Status), Added: e.Added, Deleted: e.Deleted})
+		}
+	}
+
 	// --- Layout ----------------------------------------------------------
 	opt.Progress("layout", "placing districts")
 	items := make([]layout.Item, len(files))
@@ -510,12 +621,28 @@ func Run(ctx context.Context, r *repo.Repo, opt Options) (*model.City, error) {
 			AnalyzedAt: opt.Now, Commits: commits, FirstCommit: firstTime, LastCommit: lastTime,
 			Truncated: truncated,
 		},
-		Authors:  authors,
-		Dirs:     dirs,
-		Files:    files,
-		Stats:    st,
-		Timeline: model.Timeline{Keyframes: keyframes, Events: events},
+		Authors:   authors,
+		Dirs:      dirs,
+		Files:     files,
+		Stats:     st,
+		Timeline:  model.Timeline{Keyframes: keyframes, Events: events, Story: story},
+		Couplings: couplings,
+		Diff:      diff,
 	}, nil
+}
+
+func statusWord(s byte) string {
+	switch s {
+	case 'A':
+		return "added"
+	case 'D':
+		return "deleted"
+	case 'R':
+		return "renamed"
+	case 'C':
+		return "copied"
+	}
+	return "modified"
 }
 
 func commitTime(ctx context.Context, r *repo.Repo, rev string) (int64, error) {

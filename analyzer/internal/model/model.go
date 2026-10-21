@@ -8,13 +8,15 @@ const Version = 1
 
 // City is the root document produced by one analysis run.
 type City struct {
-	Version  int      `json:"version"`
-	Repo     Repo     `json:"repo"`
-	Authors  []Author `json:"authors"`
-	Dirs     []Dir    `json:"dirs"`
-	Files    []File   `json:"files"`
-	Stats    Stats    `json:"stats"`
-	Timeline Timeline `json:"timeline"`
+	Version   int        `json:"version"`
+	Repo      Repo       `json:"repo"`
+	Authors   []Author   `json:"authors"`
+	Dirs      []Dir      `json:"dirs"`
+	Files     []File     `json:"files"`
+	Stats     Stats      `json:"stats"`
+	Timeline  Timeline   `json:"timeline"`
+	Couplings []Coupling `json:"couplings"`
+	Diff      *Diff      `json:"diff,omitempty"`
 }
 
 // Timeline is the time-travel data: the city sampled at K keyframe commits.
@@ -31,6 +33,43 @@ type City struct {
 type Timeline struct {
 	Keyframes []Keyframe `json:"keyframes"`
 	Events    []int32    `json:"events"`
+	// Story is the handful of moments worth a caption on the scrubber.
+	Story []Event `json:"story"`
+}
+
+// Event is a detected moment in the repository's history.
+type Event struct {
+	K         int     `json:"k"`
+	Kind      string  `json:"kind"` // rewrite, demolition, burst, district, person
+	Title     string  `json:"title"`
+	Detail    string  `json:"detail"`
+	Magnitude float64 `json:"magnitude"`
+	Author    int     `json:"author,omitempty"`
+}
+
+// Coupling is a pair of files that change together: support is how many
+// commits touched both, confidence is support over the less-changed file's
+// commits.
+type Coupling struct {
+	A          int     `json:"a"`
+	B          int     `json:"b"`
+	Support    int     `json:"support"`
+	Confidence float64 `json:"confidence"`
+}
+
+// Diff describes how the analyzed commit differs from a base ref.
+type Diff struct {
+	Base  string     `json:"base"`
+	Head  string     `json:"head"`
+	Files []DiffFile `json:"files"`
+}
+
+// DiffFile is one changed file, by city file id.
+type DiffFile struct {
+	ID      int    `json:"id"`
+	Status  string `json:"status"` // added, modified, deleted, renamed
+	Added   int    `json:"added"`
+	Deleted int    `json:"deleted"`
 }
 
 // Keyframe is one sampled commit.

@@ -82,10 +82,42 @@ export interface Keyframe {
   author: number
 }
 
+/** A detected moment in the repository's history, captioned on the scrubber. */
+export interface StoryEvent {
+  k: number
+  kind: 'rewrite' | 'demolition' | 'burst' | 'district' | 'person'
+  title: string
+  detail: string
+  magnitude: number
+  author?: number
+}
+
 /** Events: flat [file, k, lines, activity, owner, fire] tuples sorted by (file, k). */
 export interface Timeline {
   keyframes: Keyframe[]
   events: number[]
+  story: StoryEvent[]
+}
+
+/** Two files that change in the same commits. */
+export interface Coupling {
+  a: number
+  b: number
+  support: number
+  confidence: number
+}
+
+export interface DiffFile {
+  id: number
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'copied'
+  added: number
+  deleted: number
+}
+
+export interface Diff {
+  base: string
+  head: string
+  files: DiffFile[]
 }
 
 export interface Stats {
@@ -109,6 +141,8 @@ export interface City {
   files: File[]
   stats: Stats
   timeline: Timeline
+  couplings: Coupling[]
+  diff?: Diff
 }
 
 export const CITY_VERSION = 1

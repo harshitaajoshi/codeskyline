@@ -117,9 +117,11 @@ function applyUrlState(params: URLSearchParams, keyframes: number) {
   const t = params.get('t')
   if (t != null && !Number.isNaN(Number(t))) s.setT(Math.min(1, Math.max(0, Number(t))) * Math.max(0, keyframes - 1))
   const mode = params.get('mode')
-  if (mode && ['churn', 'activity', 'hotspots', 'owners', 'language', 'age'].includes(mode)) s.setMode(mode as never)
+  if (mode && ['churn', 'activity', 'hotspots', 'owners', 'language', 'age', 'diff'].includes(mode)) s.setMode(mode as never)
   const f = params.get('f')
   if (f != null && !Number.isNaN(Number(f))) s.select(Number(f), true)
+  const sim = params.get('sim')
+  if (sim != null && !Number.isNaN(Number(sim))) s.setSimulateAuthor(Number(sim))
   if (params.get('play') === '1') s.setPlaying(true)
 }
 

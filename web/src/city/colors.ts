@@ -1,9 +1,10 @@
 import type { City, File } from './types'
 import { percentileRanks } from './scales'
 
-export type ColorMode = 'churn' | 'activity' | 'hotspots' | 'owners' | 'language' | 'age'
+export type ColorMode = 'churn' | 'activity' | 'hotspots' | 'owners' | 'language' | 'age' | 'diff'
 
 export const MODES: { id: ColorMode; label: string; hint: string }[] = [
+  { id: 'diff', label: 'Diff', hint: 'What this change touched' },
   { id: 'churn', label: 'Churn', hint: 'Commits so far (cumulative)' },
   { id: 'activity', label: 'Activity', hint: 'What is being worked on right now' },
   { id: 'hotspots', label: 'Hotspots', hint: 'Changes often and is complex' },
@@ -13,7 +14,11 @@ export const MODES: { id: ColorMode; label: string; hint: string }[] = [
 ]
 
 /** Modes whose colors come from the timeline textures on the GPU. */
-export const GPU_MODE: Record<ColorMode, number> = { churn: 1, activity: 2, hotspots: 3, owners: 4, language: 0, age: 0 }
+export const GPU_MODE: Record<ColorMode, number> = { churn: 1, activity: 2, hotspots: 3, owners: 4, language: 0, age: 0, diff: 0 }
+
+export const DIFF_ADDED: RGB = hex('#5fd38d')
+export const DIFF_DELETED: RGB = hex('#ff5c5c')
+export const DIFF_UNCHANGED: RGB = hex('#232a3b')
 
 export const OWNER_SLOTS = 16
 
@@ -92,18 +97,39 @@ export interface ColorContext {
   churnRank: Float32Array
   ageRank: Float32Array
   owners: Map<number, RGB>
+  diff: Map<number, { status: string; added: number; deleted: number }>
+  diffMax: number
 }
 
 export function makeColorContext(city: City, mode: ColorMode): ColorContext {
+  const diff = new Map<number, { status: string; added: number; deleted: number }>()
+  let diffMax = 1
+  for (const d of city.diff?.files ?? []) {
+    diff.set(d.id, d)
+    diffMax = Math.max(diffMax, d.added + d.deleted)
+  }
   return {
     mode,
     churnRank: percentileRanks(city.files, (f) => f.commits),
     ageRank: percentileRanks(city.files, (f) => (f.created ? -f.created : 0)), // newest → 0
     owners: ownerPalette(city),
+    diff,
+    diffMax,
   }
 }
 
 export function fileColor(f: File, i: number, ctx: ColorContext): RGB {
+  if (ctx.mode === 'diff') {
+    const d = ctx.diff.get(f.id)
+    if (!d) return f.removed ? RUIN : DIFF_UNCHANGED
+    if (d.status === 'added') return DIFF_ADDED
+    if (d.status === 'deleted') return DIFF_DELETED
+    // Modified: hue by add/delete balance, brightness by size of the change.
+    const bal = (d.added + 1) / (d.added + d.deleted + 2)
+    const mag = 0.45 + 0.55 * Math.min(1, Math.log1p(d.added + d.deleted) / Math.log1p(ctx.diffMax))
+    const c = lerp(DIFF_DELETED, DIFF_ADDED, bal)
+    return [c[0] * mag, c[1] * mag, c[2] * mag]
+  }
   if (f.removed) return RUIN
   if (f.generated || f.vendored || f.binary) return DIM
   switch (ctx.mode) {

@@ -55,6 +55,8 @@ analyze flags:
   --name           display name, e.g. owner/repo (default: derived)
   --pretty         indent JSON output
   --keep-clone     do not delete the temporary clone
+  --rev            commit/branch/tag to analyze (default HEAD)
+  --diff-base      also record how --rev differs from this ref
 
 pr flags:
   --md, --json, --summary   where to write the comment / report
@@ -63,12 +65,14 @@ pr flags:
 
 func runAnalyze(args []string) int {
 	fs := flag.NewFlagSet("analyze", flag.ExitOnError)
-	var out, name string
+	var out, name, rev, diffBase string
 	var maxCommits int
 	var pretty, keepClone bool
 	fs.StringVar(&out, "o", "", "output file")
 	fs.StringVar(&out, "out", "", "output file")
 	fs.StringVar(&name, "name", "", "display name")
+	fs.StringVar(&rev, "rev", "", "commit/branch/tag to analyze (default HEAD)")
+	fs.StringVar(&diffBase, "diff-base", "", "also describe how --rev differs from this ref (city diff)")
 	fs.IntVar(&maxCommits, "max-commits", 0, "cap commits walked")
 	fs.BoolVar(&pretty, "pretty", false, "indent JSON")
 	fs.BoolVar(&keepClone, "keep-clone", false, "keep temporary clone")
@@ -117,7 +121,7 @@ func runAnalyze(args []string) int {
 		}
 	}
 
-	city, err := analyze.Run(ctx, r, analyze.Options{Name: name, URL: url, MaxCommits: maxCommits, Progress: progress})
+	city, err := analyze.Run(ctx, r, analyze.Options{Name: name, URL: url, Rev: rev, DiffBase: diffBase, MaxCommits: maxCommits, Progress: progress})
 	if err != nil {
 		return fail(err)
 	}

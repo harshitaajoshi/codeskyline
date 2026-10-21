@@ -117,6 +117,12 @@ export const Glyph = {
 }
 
 export const MODE_GLYPH: Record<ColorMode, (p: SVGProps<SVGSVGElement>) => React.JSX.Element> = {
+  diff: (p) => (
+    <svg {...base(p)}>
+      <path d="M3 8h4M5 6v4M9 8h4" />
+      <circle cx="8" cy="8" r="6.5" strokeDasharray="2 2" />
+    </svg>
+  ),
   churn: Glyph.churn,
   activity: Glyph.activity,
   hotspots: Glyph.hotspots,

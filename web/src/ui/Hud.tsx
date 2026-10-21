@@ -7,6 +7,8 @@ import { createShare } from '../city/api'
 import { Timeline } from './Timeline'
 import { Tour, shouldShowTour } from './Tour'
 import { Glyph, MODE_GLYPH } from './glyphs'
+import { simulateDeparture } from '../city/knowledge'
+import { partnersOf } from '../scene/Coupling'
 
 export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const walking = useStore((s) => s.walking)
@@ -116,6 +118,8 @@ function Lens({ city }: { city: City }) {
   const setHeightScale = useStore((s) => s.setHeightScale)
   const hideGenerated = useStore((s) => s.hideGenerated)
   const toggleGenerated = useStore((s) => s.toggleGenerated)
+  const showCoupling = useStore((s) => s.showCoupling)
+  const setShowCoupling = useStore((s) => s.setShowCoupling)
 
   if (!open) {
     const G = MODE_GLYPH[mode]
@@ -126,7 +130,7 @@ function Lens({ city }: { city: City }) {
     )
   }
   return (
-    <div className="glass rise pointer-events-auto absolute top-[68px] left-4 w-[17rem] overflow-hidden" style={{ animationDelay: '0.1s' }}>
+    <div className="glass rise pointer-events-auto absolute top-[68px] left-4 max-h-[calc(100vh-14rem)] w-[17rem] overflow-x-hidden overflow-y-auto" style={{ animationDelay: '0.1s' }}>
       <div className="flex items-center justify-between px-4 pt-3 pb-2">
         <span className="label">Lens</span>
         <button className="text-ivory/40 hover:text-ivory transition" onClick={() => setOpen(false)} aria-label="collapse">
@@ -134,7 +138,7 @@ function Lens({ city }: { city: City }) {
         </button>
       </div>
       <ul className="px-2 pb-2">
-        {MODES.map((m) => {
+        {MODES.filter((m) => m.id !== 'diff' || city.diff).map((m) => {
           const G = MODE_GLYPH[m.id]
           const active = mode === m.id
           return (
@@ -172,6 +176,14 @@ function Lens({ city }: { city: City }) {
           <input type="checkbox" className="accent-amber" checked={hideGenerated} onChange={toggleGenerated} /> hide generated
         </label>
       </div>
+      {city.couplings.length > 0 && (
+        <label className="hairline text-ivory/50 flex cursor-pointer items-center justify-between border-t px-4 py-2.5 font-mono text-[11px]" title="files that keep changing in the same commits, drawn as bridges">
+          <span>
+            coupling bridges <span className="text-ivory/30">· {city.couplings.length}</span>
+          </span>
+          <input type="checkbox" className="accent-amber" checked={showCoupling} onChange={(e) => setShowCoupling(e.target.checked)} />
+        </label>
+      )}
     </div>
   )
 }
@@ -207,21 +219,89 @@ function Legend({ city, mode }: { city: City; mode: ColorMode }) {
         </div>
       )
     case 'owners':
+      return <OwnersLegend city={city} top={top} />
+    case 'diff':
       return (
-        <div className="text-ivory/70 grid grid-cols-2 gap-x-3 gap-y-1 text-[11.5px]">
-          {top.map((a) => (
-            <span key={a.i} className="flex items-center gap-1.5 truncate">
-              <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: ownerCss(a.i, city) }} />
-              <span className="truncate">{a.login ? `@${a.login}` : a.name}</span>
+        <div className="text-ivory/60 font-mono text-[11px]">
+          <div className="flex flex-wrap gap-x-3 gap-y-1">
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#5fd38d' }} /> added
             </span>
-          ))}
-          <span className="flex items-center gap-1.5 truncate">
-            <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: '#1c1f2b', border: '1px solid #3a4256' }} />
-            <span className="text-ivory/45 truncate">ghost town</span>
-          </span>
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#b89a5e' }} /> modified
+            </span>
+            <span className="flex items-center gap-1.5">
+              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#ff5c5c' }} /> deleted
+            </span>
+          </div>
+          {city.diff && (
+            <div className="text-ivory/40 mt-1.5">
+              {city.diff.files.length} files · {city.diff.base.slice(0, 7)} → {city.diff.head.slice(0, 7)}
+            </div>
+          )}
         </div>
       )
   }
+}
+
+/** Owners legend with the departure simulation: click a person, see what goes dark. */
+function OwnersLegend({ city, top }: { city: City; top: { i: number; name: string; login?: string }[] }) {
+  const sim = useStore((s) => s.simulateAuthor)
+  const setSim = useStore((s) => s.setSimulateAuthor)
+  const impact = useMemo(() => (sim == null ? null : simulateDeparture(city, sim)), [city, sim])
+  const name = (i: number) => {
+    const a = city.authors[i]
+    return a ? (a.login ? `@${a.login}` : a.name) : ''
+  }
+  return (
+    <div className="text-[11.5px]">
+      <div className="text-ivory/70 grid grid-cols-2 gap-x-3 gap-y-1">
+        {top.map((a) => (
+          <button
+            key={a.i}
+            onClick={() => setSim(sim === a.i ? null : a.i)}
+            className={`flex items-center gap-1.5 truncate rounded px-1 -mx-1 text-left transition ${sim === a.i ? 'bg-ivory/[0.08] text-ivory' : 'hover:bg-ivory/[0.05]'}`}
+            title="simulate this person leaving"
+          >
+            <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: ownerCss(a.i, city) }} />
+            <span className="truncate">{a.login ? `@${a.login}` : a.name}</span>
+          </button>
+        ))}
+        <span className="flex items-center gap-1.5 truncate px-1 -mx-1">
+          <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: '#1c1f2b', border: '1px solid #3a4256' }} />
+          <span className="text-ivory/45 truncate">ghost town</span>
+        </span>
+      </div>
+      {impact ? (
+        <div className="hairline mt-3 border-t pt-3">
+          <div className="label mb-1.5">if {name(impact.author)} left</div>
+          <div className="text-[13px]">
+            <span className="text-fire font-medium">{impact.lost.size}</span>{' '}
+            <span className="text-ivory/60">
+              of {impact.total} files ({impact.total ? Math.round((impact.lost.size / impact.total) * 100) : 0}%) would have no active owner
+            </span>
+          </div>
+          {impact.districts.length > 0 && (
+            <ul className="text-ivory/60 mt-2 space-y-0.5 font-mono text-[11px]">
+              {impact.districts.map((d) => (
+                <li key={d.path} className="flex justify-between gap-2">
+                  <span className="truncate">{d.path}</span>
+                  <span className="text-fire/80 shrink-0">
+                    {d.lost}/{d.files}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <button onClick={() => setSim(null)} className="text-ivory/45 hover:text-ivory mt-2 font-mono text-[11px] transition">
+            clear simulation
+          </button>
+        </div>
+      ) : (
+        <div className="text-ivory/35 mt-2 font-mono text-[10.5px]">click a person to simulate them leaving</div>
+      )}
+    </div>
+  )
 }
 
 function Bar({ from, to, css }: { from: string; to: string; css: string }) {
@@ -384,11 +464,39 @@ function Inspector({ city }: { city: City }) {
           })}
         </div>
       )}
+      <CoupledWith city={city} id={selected} />
       {url && (
         <a className="hairline text-ivory/70 hover:text-amber flex items-center justify-between border-t px-4 py-2.5 font-mono text-[11.5px] transition" href={url} target="_blank" rel="noreferrer">
           open on GitHub <Glyph.external width={12} height={12} />
         </a>
       )}
+    </div>
+  )
+}
+
+/** Files that keep changing in the same commits as this one. */
+function CoupledWith({ city, id }: { city: City; id: number }) {
+  const select = useStore((s) => s.select)
+  const partners = useMemo(() => partnersOf(city, id).slice(0, 6), [city, id])
+  if (partners.length === 0) return null
+  return (
+    <div className="hairline border-t px-4 py-3">
+      <div className="label mb-2">changes together with</div>
+      <ul className="space-y-1">
+        {partners.map((p) => {
+          const f = city.files[p.id]!
+          return (
+            <li key={p.id}>
+              <button onClick={() => select(p.id, true)} className="group flex w-full items-center gap-2 text-left" title={f.path}>
+                <span className="group-hover:text-amber truncate font-mono text-[11.5px] transition">{f.path}</span>
+                <span className="text-ivory/40 ml-auto shrink-0 font-mono text-[10.5px]">
+                  {p.support}× · {Math.round(p.confidence * 100)}%
+                </span>
+              </button>
+            </li>
+          )
+        })}
+      </ul>
     </div>
   )
 }

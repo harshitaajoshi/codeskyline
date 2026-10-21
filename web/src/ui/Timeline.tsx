@@ -82,7 +82,8 @@ export function Timeline({ city }: { city: City }) {
   const pct = last ? (t / last) * 100 : 100
 
   return (
-    <div className="rise pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4" style={{ animationDelay: '0.2s' }}>
+    <div className="rise pointer-events-none absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-4" style={{ animationDelay: '0.2s' }}>
+      <StoryCaption city={city} />
       <div className="glass pointer-events-auto w-[48rem] max-w-full px-4 pt-3 pb-2.5">
         <div className="flex items-center gap-4">
           <button
@@ -99,7 +100,7 @@ export function Timeline({ city }: { city: City }) {
               <span className="text-[14px] leading-none font-medium tracking-[-0.01em] whitespace-nowrap tabular-nums">
                 {date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
-              <span className="text-ivory/50 truncate font-mono text-[11px]">
+              <span className="text-ivory/50 min-w-0 truncate font-mono text-[11px]">
                 {cur && (
                   <>
                     <span className="text-ivory/70">{cur.hash.slice(0, 7)}</span> {cur.subject}
@@ -109,6 +110,7 @@ export function Timeline({ city }: { city: City }) {
               </span>
             </div>
             <div className="relative mt-1.5">
+              <StoryMarkers city={city} last={last} />
               <input
                 type="range"
                 min={0}
@@ -162,6 +164,81 @@ export function Timeline({ city }: { city: City }) {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+const KIND_WORD: Record<string, string> = { rewrite: 'rewrite', demolition: 'demolition', burst: 'burst', district: 'new district', person: 'people' }
+
+/** Small marks above the track, one per detected moment; click to jump there. */
+function StoryMarkers({ city, last }: { city: City; last: number }) {
+  const setT = useStore((s) => s.setT)
+  const setPlaying = useStore((s) => s.setPlaying)
+  const setPinned = useStore((s) => s.setPinnedEvent)
+  const pinned = useStore((s) => s.pinnedEvent)
+  const story = city.timeline.story ?? []
+  if (story.length === 0) return null
+  return (
+    <div className="pointer-events-none absolute inset-x-0 -top-2 h-3">
+      {story.map((e, i) => (
+        <button
+          key={i}
+          onClick={() => {
+            setPlaying(false)
+            setT(e.k)
+            setPinned(pinned === i ? null : i)
+          }}
+          className={`pointer-events-auto absolute top-0 h-2 w-2 -translate-x-1/2 rotate-45 rounded-[1px] transition-transform hover:scale-150 ${
+            e.kind === 'demolition' ? 'bg-fire/80' : e.kind === 'person' ? 'bg-ivory/60' : 'bg-amber/90'
+          } ${pinned === i ? 'scale-150' : ''}`}
+          style={{ left: `${(e.k / Math.max(1, last)) * 100}%` }}
+          title={`${e.title}: ${e.detail}`}
+          aria-label={e.title}
+        />
+      ))}
+    </div>
+  )
+}
+
+/** A caption for the moment the scrubber is on (or the one pinned by a click). */
+function StoryCaption({ city }: { city: City }) {
+  const t = useStore((s) => s.t)
+  const pinned = useStore((s) => s.pinnedEvent)
+  const setPinned = useStore((s) => s.setPinnedEvent)
+  const story = city.timeline.story ?? []
+  let idx = pinned
+  if (idx == null) {
+    // Nearest event within half a keyframe of the scrubber.
+    let best = -1
+    let bestD = 0.75
+    story.forEach((e, i) => {
+      const d = Math.abs(e.k - t)
+      if (d < bestD) {
+        best = i
+        bestD = d
+      }
+    })
+    idx = best >= 0 ? best : null
+  }
+  if (idx == null) return null
+  const e = story[idx]!
+  const kf = city.timeline.keyframes[e.k]
+  const when = kf ? new Date(kf.time * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long' }) : ''
+  return (
+    <div key={idx} className="glass rise pointer-events-auto flex max-w-[48rem] items-start gap-3 px-4 py-2.5" style={{ animationDuration: '0.4s' }}>
+      <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rotate-45 rounded-[1px] ${e.kind === 'demolition' ? 'bg-fire/80' : e.kind === 'person' ? 'bg-ivory/60' : 'bg-amber/90'}`} />
+      <div className="min-w-0">
+        <div className="text-ivory/45 font-mono text-[10.5px] tracking-wide uppercase">
+          {when} · {KIND_WORD[e.kind] ?? e.kind}
+        </div>
+        <div className="text-[13.5px] font-medium">{e.title}</div>
+        <div className="text-ivory/60 text-[12px]">{e.detail}</div>
+      </div>
+      {pinned != null && (
+        <button onClick={() => setPinned(null)} className="text-ivory/40 hover:text-ivory ml-2 transition" aria-label="close">
+          <Glyph.close />
+        </button>
+      )}
     </div>
   )
 }

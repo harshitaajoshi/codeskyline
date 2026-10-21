@@ -29,6 +29,15 @@ interface State {
   markerScreen: { x: number; y: number; visible: boolean }
   setMarkerScreen: (m: { x: number; y: number; visible: boolean }) => void
 
+  showCoupling: boolean
+  setShowCoupling: (v: boolean) => void
+  /** Owners lens: author whose departure is being simulated. */
+  simulateAuthor: number | null
+  setSimulateAuthor: (a: number | null) => void
+  /** Story event pinned open on the timeline (index into timeline.story). */
+  pinnedEvent: number | null
+  setPinnedEvent: (i: number | null) => void
+
   setCity: (c: City) => void
   setLoading: () => void
   setError: (msg: string) => void
@@ -67,9 +76,30 @@ export const useStore = create<State>((set, get) => ({
   tourStep: null,
   markerScreen: { x: 0, y: 0, visible: false },
   setMarkerScreen: (markerScreen) => set({ markerScreen }),
+  showCoupling: true,
+  setShowCoupling: (showCoupling) => set({ showCoupling }),
+  simulateAuthor: null,
+  setSimulateAuthor: (simulateAuthor) => set({ simulateAuthor }),
+  pinnedEvent: null,
+  setPinnedEvent: (pinnedEvent) => set({ pinnedEvent }),
   setCity: (city) => {
     const last = Math.max(0, city.timeline.keyframes.length - 1)
-    set({ city, status: 'ready', error: undefined, hovered: null, selected: null, flyTo: null, t: last, k: last, playing: false, walking: false })
+    set({
+      city,
+      status: 'ready',
+      error: undefined,
+      hovered: null,
+      selected: null,
+      flyTo: null,
+      t: last,
+      k: last,
+      playing: false,
+      walking: false,
+      simulateAuthor: null,
+      pinnedEvent: null,
+      // A city built with a diff opens on the diff lens.
+      mode: city.diff ? 'diff' : get().mode === 'diff' ? 'churn' : get().mode,
+    })
   },
   setLoading: () => set({ status: 'loading', error: undefined }),
   setError: (error) => set({ status: 'error', error }),
