@@ -65,7 +65,7 @@ function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => v
     <div className="rise txt pointer-events-none absolute inset-x-6 top-5">
       <div className="flex items-center justify-between">
         <div className="pointer-events-auto">
-          <Wordmark size={21} onClick={onHome} />
+          <Wordmark size={17} onClick={onHome} />
         </div>
         <div className="pointer-events-auto flex items-center gap-7 font-mono text-[10.5px] tracking-[0.18em] uppercase">
         <button className="lnk text-ivory/60 hover:text-ivory" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}>

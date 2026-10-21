@@ -81,7 +81,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
       <div className="relative">
         {/* Nav */}
         <header className="mx-auto flex max-w-6xl items-center justify-between px-6 pt-6 text-[13px]">
-          <Wordmark size={22} />
+          <Wordmark size={18} />
           <nav className="text-ivory/60 flex items-center gap-6 font-mono text-xs tracking-wide">
             <a className="hover:text-ivory uppercase" href="https://github.com/harshitaajoshi/codeskyline/tree/main/action" target="_blank" rel="noreferrer">
               (01) PR action
