@@ -14,18 +14,18 @@ commit history. Scrub a timeline to watch the city grow over years of commits.
 
 ## What makes it different
 
-- **Time travel.** a slider replays the whole history on the GPU: buildings rise,
+- **Time travel.** A slider replays the whole history on the GPU: buildings rise,
   get demolished and catch fire as the commits roll by.
-- **Ownership view.** buildings colored by who really maintains them (knowledge
+- **Ownership view.** Buildings colored by who really maintains them (knowledge
   decays with a one-year half-life), per-district bus factor, and "ghost town"
   detection for code nobody active still owns.
-- **Hotspots that mean something.** recent churn × complexity (after
+- **Hotspots that mean something.** Recent churn × complexity (after
   Tornhill's *Your Code as a Crime Scene*), [validated on 12 real repos](docs/benchmarks.md):
   the top-20 hotspots catch 70% of the files that get bug fixes in the following
   year, against a 21% base rate.
-- **PR mode.** a GitHub Action posts a city diff on every pull request: which
+- **PR mode.** A GitHub Action posts a city diff on every pull request: which
   buildings changed, and whether you just touched something on fire.
-- **Shareable.** every view is a URL; every repo gets a README badge that is a
+- **Shareable.** Every view is a URL; every repo gets a README badge that is a
   tiny silhouette of its own skyline.
 
 ## PR mode (GitHub Action)
