@@ -7,7 +7,6 @@ import { Glyph } from './glyphs'
 
 export type Insight = {
   key: string
-  Icon: (p: React.SVGProps<SVGSVGElement>) => React.JSX.Element
   tone?: 'fire' | 'amber'
   title: string
   detail: string
@@ -16,9 +15,8 @@ export type Insight = {
 }
 
 /**
- * One finding at a time, as a sentence at the top of the screen, with the
- * thing that proves it one click away. This is the front door to every
- * feature; nothing else needs a label.
+ * One finding at a time, set as a statement at the top of the screen with
+ * the thing that proves it one click away. No box: type on the city.
  */
 export function InsightStrip({ city }: { city: City }) {
   const selected = useStore((s) => s.selected)
@@ -41,38 +39,31 @@ export function InsightStrip({ city }: { city: City }) {
   if (selected != null || insights.length === 0) return null
   if (!open)
     return (
-      <button onClick={() => setOpen(true)} className="glass btn rise pointer-events-auto absolute top-4 left-1/2 h-9 -translate-x-1/2 rounded-full pr-4">
-        <Glyph.hotspots className="text-amber" /> <span className="label">{insights.length} findings</span>
+      <button onClick={() => setOpen(true)} className="txt lnk text-ivory/60 hover:text-ivory pointer-events-auto absolute top-6 left-1/2 -translate-x-1/2 font-mono text-[11px] tracking-[0.16em] uppercase">
+        {insights.length} findings
       </button>
     )
   const i = insights[Math.min(index, insights.length - 1)]!
   return (
-    <div className="rise pointer-events-none absolute top-4 left-1/2 w-[40rem] max-w-[calc(100vw-2rem)] -translate-x-1/2" style={{ animationDelay: '0.3s' }}>
-      <div key={i.key} className="glass rise pointer-events-auto flex items-center gap-3 py-2.5 pr-2 pl-4" style={{ animationDuration: '0.35s' }}>
-        <span className={`shrink-0 ${i.tone === 'fire' ? 'text-fire' : 'text-amber'}`}>
-          <i.Icon width={18} height={18} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="text-[13.5px] leading-5">{i.title}</div>
-          <div className="text-ivory/50 truncate text-[11.5px] leading-4" title={i.detail}>
-            {i.detail}
-          </div>
+    <div className="pointer-events-none absolute top-6 left-1/2 w-[46rem] max-w-[calc(100vw-22rem)] -translate-x-1/2 text-center">
+      <div key={i.key} className="rise txt" style={{ animationDuration: '0.5s' }}>
+        <div className="text-ivory/45 font-mono text-[10.5px] tracking-[0.18em] uppercase">
+          finding {String(index + 1).padStart(2, '0')} / {String(insights.length).padStart(2, '0')}
         </div>
-        <button onClick={i.run} className="bg-amber text-bg hover:bg-amber/90 h-8 shrink-0 rounded-full px-3.5 text-[12px] font-medium whitespace-nowrap transition-transform active:scale-95">
-          {i.action}
-        </button>
-        <div className="flex shrink-0 items-center">
-          <button className="btn h-8 w-8 justify-center rounded-full px-0" onClick={() => setIndex((index - 1 + insights.length) % insights.length)} aria-label="previous">
-            <Glyph.chevron width={12} height={12} style={{ transform: 'rotate(180deg)' }} />
+        <h2 className="font-display mt-2 text-[27px] leading-[1.15] tracking-[-0.005em] text-balance">{i.title}</h2>
+        <p className="text-ivory/60 mx-auto mt-2 max-w-xl text-[12.5px] leading-relaxed text-balance">{i.detail}</p>
+        <div className="pointer-events-auto mt-3 flex items-center justify-center gap-6 font-mono text-[11.5px]">
+          <button className="text-ivory/50 hover:text-ivory transition" onClick={() => setIndex((index - 1 + insights.length) % insights.length)} aria-label="previous">
+            ←
           </button>
-          <span className="text-ivory/40 font-mono text-[10.5px] tabular-nums">
-            {index + 1}/{insights.length}
-          </span>
-          <button className="btn h-8 w-8 justify-center rounded-full px-0" onClick={() => setIndex((index + 1) % insights.length)} aria-label="next">
-            <Glyph.chevron width={12} height={12} />
+          <button onClick={i.run} className={`lnk ${i.tone === 'fire' ? 'text-fire' : 'text-amber'} tracking-[0.12em] uppercase`}>
+            {i.action}
           </button>
-          <button className="btn h-8 w-8 justify-center rounded-full px-0" onClick={() => setOpen(false)} aria-label="hide">
-            <Glyph.close width={12} height={12} />
+          <button className="text-ivory/50 hover:text-ivory transition" onClick={() => setIndex((index + 1) % insights.length)} aria-label="next">
+            →
+          </button>
+          <button className="text-ivory/35 hover:text-ivory ml-2 transition" onClick={() => setOpen(false)} aria-label="hide">
+            <Glyph.close width={11} height={11} />
           </button>
         </div>
       </div>
@@ -99,10 +90,9 @@ export function buildInsights(city: City): Insight[] {
     const top = burning[0]
     out.push({
       key: 'fire',
-      Icon: Glyph.hotspots,
       tone: 'fire',
-      title: `${burning.length} building${burning.length === 1 ? ' is' : 's are'} on fire`,
-      detail: `${top.path} changes the most and is complex: ${formatNum(top.commits)} commits, ${top.bugFixes} bug fixes`,
+      title: `${burning.length} building${burning.length === 1 ? ' is' : 's are'} on fire.`,
+      detail: `${top.path} changes the most and is complex: ${formatNum(top.commits)} commits, ${top.bugFixes} bug fixes.`,
       action: 'Fly there',
       run: () => {
         s().setMode('hotspots')
@@ -117,10 +107,9 @@ export function buildInsights(city: City): Insight[] {
     const b = city.files[c0.b]!
     out.push({
       key: 'coupling',
-      Icon: Glyph.churn,
-      title: `Change ${shortName(a.path)} and you will probably change ${shortName(b.path)}`,
+      title: `Change ${shortName(a.path)} and you will probably change ${shortName(b.path)}.`,
       detail: `Edited in the same commit ${c0.support} times, ${Math.round(c0.confidence * 100)}% of the time, with no import between them. ${city.couplings.length} hidden dependencies like this.`,
-      action: 'Show',
+      action: 'Show what it drags along',
       run: () => {
         s().setShowCoupling(true)
         s().select(c0.a, true)
@@ -137,11 +126,10 @@ export function buildInsights(city: City): Insight[] {
   if (worst && worst.total > 0) {
     out.push({
       key: 'departure',
-      Icon: Glyph.owners,
       tone: worst.lost / worst.total > 0.2 ? 'fire' : 'amber',
-      title: `If ${authorName(city, worst.author)} left, ${worst.lost} file${worst.lost === 1 ? '' : 's'} would have no active owner`,
+      title: `If ${authorName(city, worst.author)} left, ${worst.lost} file${worst.lost === 1 ? '' : 's'} would have no one who knows ${worst.lost === 1 ? 'it' : 'them'}.`,
       detail: `${Math.round((worst.lost / worst.total) * 100)}% of the live codebase. Owners who have not committed in a year do not count.`,
-      action: 'Simulate',
+      action: 'Simulate it',
       run: () => {
         s().setMode('owners')
         s().setSimulateAuthor(worst!.author)
@@ -153,8 +141,7 @@ export function buildInsights(city: City): Insight[] {
   if (bus1[0]) {
     out.push({
       key: 'bus',
-      Icon: Glyph.owners,
-      title: `${bus1[0].path} is held by one person`,
+      title: `${bus1[0].path} is held by one person.`,
       detail: `${bus1.length} district${bus1.length === 1 ? '' : 's'} with bus factor 1. Lose that person and most of it has no active owner.`,
       action: 'Color by owner',
       run: () => s().setMode('owners'),
@@ -165,8 +152,7 @@ export function buildInsights(city: City): Insight[] {
   if (ghosts.length >= Math.max(3, alive.length * 0.05)) {
     out.push({
       key: 'ghost',
-      Icon: Glyph.age,
-      title: `${ghosts.length} files are a ghost town`,
+      title: `${ghosts.length} files are a ghost town.`,
       detail: `${Math.round((ghosts.length / alive.length) * 100)}% of the codebase: nobody who wrote them is still active, and nobody has touched them in a year.`,
       action: 'Show them dark',
       run: () => s().setMode('owners'),
@@ -180,8 +166,7 @@ export function buildInsights(city: City): Insight[] {
     const when = kf ? new Date(kf.time * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short' }) : ''
     out.push({
       key: 'story',
-      Icon: Glyph.play,
-      title: `${story.length} moments shaped this city`,
+      title: `${story.length} moments shaped this city.`,
       detail: `${when}: ${big.title}. ${big.detail}.`,
       action: 'Jump there',
       run: () => {
@@ -196,10 +181,9 @@ export function buildInsights(city: City): Insight[] {
     const years = Math.max(1, Math.round((city.repo.lastCommit - city.repo.firstCommit) / (365 * 86400)))
     out.push({
       key: 'play',
-      Icon: Glyph.play,
-      title: `Watch ${years} year${years === 1 ? '' : 's'} of commits build it`,
-      detail: `${formatNum(city.repo.commits)} commits by ${city.authors.length} people, replayed in about 20 seconds.`,
-      action: 'Play',
+      title: `Watch ${years} year${years === 1 ? '' : 's'} of commits build it.`,
+      detail: `${formatNum(city.repo.commits)} commits by ${city.authors.length} people, replayed in about twenty seconds.`,
+      action: 'Play from the beginning',
       run: () => {
         s().setMode('activity')
         s().setT(0)
@@ -211,8 +195,7 @@ export function buildInsights(city: City): Insight[] {
   if (city.diff) {
     out.unshift({
       key: 'diff',
-      Icon: Glyph.churn,
-      title: `This change touches ${city.diff.files.length} files`,
+      title: `This change touches ${city.diff.files.length} files.`,
       detail: `${city.diff.files.filter((d) => d.status === 'added').length} added, ${city.diff.files.filter((d) => d.status === 'deleted').length} deleted. Hotspots among them are the ones to review first.`,
       action: 'Show the diff',
       run: () => s().setMode('diff'),
