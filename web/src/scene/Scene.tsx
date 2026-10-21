@@ -48,7 +48,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   // frame budget goes to the buildings.
   const n = city.files.length
   const wet = n <= 12000
-  const traffic = n <= 30000
+  const traffic = false && n <= 30000 // off until there are roads for the cars to be on
 
   return (
     <Canvas
