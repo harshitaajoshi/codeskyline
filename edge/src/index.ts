@@ -41,14 +41,19 @@ app.post('/api/analyze', async (c) => {
     return c.json({ error: `This repository is ${(info.sizeKB / 1e6).toFixed(1)} GB; the hosted analyzer caps at ${(maxKB / 1e6).toFixed(1)} GB. Run the csky CLI locally instead.` }, 413)
   }
 
-  const key = `${info.owner}/${info.name}@${info.sha}`
+  const key = `${info.owner}/${info.name}@${info.sha}~${FORMAT}`
   // Already built for this exact commit? Done.
   const have = await c.env.DB.prepare('SELECT key FROM analyses WHERE key = ?').bind(key).first()
   if (have) return ok(c, { status: 'ready', key, owner: info.owner, name: info.name, sha: info.sha })
 
   // Single-flight through the job DO; it only enqueues the first time.
   const stub = c.env.JOB.get(c.env.JOB.idFromName(key))
-  const existing = await stub.get()
+  let existing = await stub.get()
+  if (existing?.status === 'ready') {
+    // The job finished but its row is gone (cleared or expired): run again.
+    await stub.reset()
+    existing = null
+  }
   if (!existing || existing.status === 'error') {
     const allowed = await consumeBudget(c.env)
     if (!allowed) return c.json({ error: 'This month’s analysis budget is used up. Cached cities still work; new ones resume next month.' }, 503)
@@ -81,7 +86,12 @@ app.get('/api/city/:owner/:name', async (c) => {
 
 app.get('/api/city/:owner/:name/:sha', async (c) => {
   const { owner, name, sha } = c.req.param()
-  const obj = await c.env.CITIES.get(r2Key(owner, name, sha))
+  // Newest analysis of this commit first, so a rebuilt city wins over an
+  // older format while older ones stay reachable.
+  const row = await c.env.DB.prepare('SELECT r2_key FROM analyses WHERE owner = ? AND name = ? AND sha = ? ORDER BY analyzed_at DESC LIMIT 1')
+    .bind(owner, name, sha)
+    .first<{ r2_key: string }>()
+  const obj = await c.env.CITIES.get(row?.r2_key ?? r2Key(owner, name, sha))
   if (!obj) return c.json({ error: 'not found' }, 404)
   return new Response(obj.body, {
     // Workers extension: pass the stored gzip bytes through untouched.
@@ -246,8 +256,15 @@ export default {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Bumped whenever the analyzer adds data the viewer wants (couplings, story,
+ * ...). It is part of the cache key, so an already-built commit is rebuilt
+ * once with the new analyzer instead of serving the stale document forever.
+ */
+const FORMAT = 'v2'
+
 function r2Key(owner: string, name: string, sha: string) {
-  return `cities/${owner}/${name}/${sha}.json.gz`
+  return `cities/${FORMAT}/${owner}/${name}/${sha}.json.gz`
 }
 
 async function consumeBudget(env: Env): Promise<boolean> {

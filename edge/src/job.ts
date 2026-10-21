@@ -55,6 +55,12 @@ export class JobDO extends DurableObject<Env> {
     return this.state()
   }
 
+  /** Forget a finished job so it can run again (its stored result went away). */
+  async reset(): Promise<void> {
+    await this.ctx.storage.deleteAll()
+    this.cached = null
+  }
+
   async update(stage: string, detail: string): Promise<void> {
     const s = await this.state()
     if (!s) return
