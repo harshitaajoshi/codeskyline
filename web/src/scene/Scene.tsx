@@ -25,6 +25,7 @@ import { Traffic } from './Traffic'
 import { Walk } from './Walk'
 import { Waterfront } from './Waterfront'
 import { patchHeightFog } from './fog'
+import { atmosphere } from './atmosphere'
 
 patchHeightFog()
 
@@ -56,6 +57,8 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   // The sun sits low on the horizon: long shadows, and the sky glows on its side.
   const sun = useMemo(() => new THREE.Vector3(cx + size * 0.85, size * 0.22, cz - size * 0.5), [cx, cz, size])
   const sunDir = useMemo(() => new THREE.Vector3(size * 0.85, size * 0.22, -size * 0.5).normalize(), [size])
+  const hemi = useRef<THREE.HemisphereLight>(null!)
+  const sunLight = useRef<THREE.DirectionalLight>(null!)
 
   return (
     <Canvas
@@ -71,9 +74,11 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <fog attach="fog" args={['#1b1e2c', size * 0.6, size * 4]} />
       <Sky radius={size * 6} sun={sunDir} />
       <DuskEnvironment sun={sunDir} />
-      <hemisphereLight args={['#5d6f96', '#1c1b1f', 1.6]} />
+      <DayNight city={city} size={size} sun={sun} />
+      <hemisphereLight ref={hemi} args={['#5d6f96', '#1c1b1f', 1.6]} />
       {/* A low sun: long shadows across the districts are most of the depth. */}
       <directionalLight
+        ref={sunLight}
         position={sun.toArray()}
         intensity={3.2}
         color="#ffc08a"
@@ -125,6 +130,69 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       </EffectComposer>
     </Canvas>
   )
+}
+
+const DAY = {
+  sunColor: new THREE.Color('#ffefd6'),
+  sunIntensity: 2.3,
+  skyColor: new THREE.Color('#9db6e0'),
+  groundColor: new THREE.Color('#4a4844'),
+  hemiIntensity: 1.1,
+  fog: new THREE.Color('#7f90ab'),
+  background: new THREE.Color('#5f8cc8'),
+}
+const DUSK = {
+  sunColor: new THREE.Color('#ffc08a'),
+  sunIntensity: 3.2,
+  skyColor: new THREE.Color('#5d6f96'),
+  groundColor: new THREE.Color('#1c1b1f'),
+  hemiIntensity: 1.6,
+  fog: new THREE.Color('#1b1e2c'),
+  background: new THREE.Color('#0e1120'),
+}
+
+/**
+ * Time of day follows the timeline: the repository's first commits are in
+ * daylight, the present is dusk. Writes `atmosphere.night` for the materials
+ * (windows, lamps, car lights) and lerps the lights, fog and sky each frame.
+ */
+function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Vector3 }) {
+  const scene = useThree((s) => s.scene)
+  const hemi = useRef<THREE.HemisphereLight | null>(null)
+  const dir = useRef<THREE.DirectionalLight | null>(null)
+  useEffect(() => {
+    hemi.current = scene.children.find((o): o is THREE.HemisphereLight => o instanceof THREE.HemisphereLight) ?? null
+    dir.current = scene.children.find((o): o is THREE.DirectionalLight => o instanceof THREE.DirectionalLight) ?? null
+  })
+  useFrame(() => {
+    const last = Math.max(1, city.timeline.keyframes.length - 1)
+    const frac = useStore.getState().t / last
+    const s = Math.min(1, Math.max(0, (frac - 0.3) / 0.65))
+    const night = s * s * (3 - 2 * s)
+    atmosphere.night = night
+    const h = hemi.current
+    const d = dir.current
+    if (h) {
+      h.color.copy(DAY.skyColor).lerp(DUSK.skyColor, night)
+      h.groundColor.copy(DAY.groundColor).lerp(DUSK.groundColor, night)
+      h.intensity = DAY.hemiIntensity + (DUSK.hemiIntensity - DAY.hemiIntensity) * night
+    }
+    if (d) {
+      d.color.copy(DAY.sunColor).lerp(DUSK.sunColor, night)
+      d.intensity = DAY.sunIntensity + (DUSK.sunIntensity - DAY.sunIntensity) * night
+      // The sun climbs during the day and sits on the horizon at dusk.
+      d.position.set(sun.x, sun.y + size * 0.6 * (1 - night), sun.z)
+    }
+    if (scene.fog instanceof THREE.Fog) {
+      scene.fog.color.copy(DAY.fog).lerp(DUSK.fog, night)
+      // Clear air by day, haze at dusk.
+      scene.fog.near = size * (2.2 - 1.6 * night)
+      scene.fog.far = size * (9 - 5 * night)
+    }
+    if (scene.background instanceof THREE.Color) scene.background.copy(DAY.background).lerp(DUSK.background, night)
+    scene.environmentIntensity = 0.6 + 0.5 * night
+  })
+  return null
 }
 
 /**

@@ -9,6 +9,7 @@ import { linesAt, type TimelineData } from '../city/timeline'
 import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from './Coupling'
 import { Glow } from './Glow'
+import { atmosphere } from './atmosphere'
 import type { City } from '../city/types'
 
 const LOT_MARGIN = 0.12 // gap between a building and its lot edge
@@ -173,6 +174,7 @@ export function Buildings({
       uWindows: { value: 1 },
       uWindowBase: { value: 0.2 },
       uTime: { value: 0 },
+      uNight: { value: 1 },
     }),
     [timeline, textures, city],
   )
@@ -202,6 +204,7 @@ export function Buildings({
   useFrame(({ clock }) => {
     uniforms.uT.value = useStore.getState().t
     uniforms.uTime.value = clock.elapsedTime
+    uniforms.uNight.value = atmosphere.night
   })
 
   // --- instance geometry ---------------------------------------------------
@@ -385,10 +388,10 @@ function Crowns({
       Object.assign(shader.uniforms, uniforms)
       shader.vertexShader = CROWN_VERT_PARS + shader.vertexShader.replace('#include <begin_vertex>', CROWN_VERT_BEGIN)
       shader.fragmentShader =
-        'varying float vCskyEmit;\nuniform float uTime;\n' +
+        'varying float vCskyEmit;\nuniform float uTime;\nuniform float uNight;\n' +
         shader.fragmentShader.replace(
           '#include <emissivemap_fragment>',
-          '#include <emissivemap_fragment>\n if (vCskyEmit > 0.5) totalEmissiveRadiance += vec3(3.0, 0.2, 0.15) * (0.3 + 0.7 * step(0.5, fract(uTime * 0.8 + vCskyEmit)));',
+          '#include <emissivemap_fragment>\n if (vCskyEmit > 0.5) totalEmissiveRadiance += vec3(3.0, 0.2, 0.15) * (0.3 + 0.7 * step(0.5, fract(uTime * 0.8 + vCskyEmit))) * (0.2 + 0.8 * uNight);',
         )
     }
     return m
@@ -594,6 +597,7 @@ varying float vCskyAct;
 varying float vCskyH;
 uniform float uWindows;
 uniform float uWindowBase;
+uniform float uNight;
 float cskyHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 `
 
@@ -630,11 +634,11 @@ const FRAG_FACADE = /* glsl */ `
     if (inWin) {
       float r = cskyHash(cell + vec2(vCskySeed * 91.7, vCskySeed * 13.3) + floor(n.x * 2.0 + n.z * 3.0));
       // Some buildings are busy at this hour, some have gone home.
-      float litFrac = (uWindowBase + 0.6 * vCskyAct) * (0.6 + 0.8 * s1) + (ground ? 0.35 : 0.0);
+      float litFrac = ((uWindowBase + 0.6 * vCskyAct) * (0.6 + 0.8 * s1) + (ground ? 0.35 : 0.0)) * (0.15 + 0.85 * uNight);
       if (r < litFrac) {
         float warm = fract(r * 17.0);
         vec3 light = warm < 0.7 ? vec3(1.0, 0.8, 0.5) : warm < 0.9 ? vec3(0.9, 0.94, 1.0) : vec3(0.75, 0.95, 0.9);
-        csky_windowGlow = light * (0.9 + 0.9 * fract(r * 31.0));
+        csky_windowGlow = light * (0.9 + 0.9 * fract(r * 31.0)) * (0.1 + 0.9 * uNight);
         diffuseColor.rgb = light * 0.6;
       } else {
         // Dark glass: keeps a little sky in it via the environment map.

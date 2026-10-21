@@ -84,19 +84,21 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const k = useStore((s) => s.k)
   const geometry = useMemo(() => carGeometry(), [])
+  const night = useMemo(() => ({ value: 1 }), [])
   const material = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.6 })
     m.onBeforeCompile = (shader) => {
+      shader.uniforms.uNight = night
       shader.vertexShader = 'attribute float emit;\nvarying float vEmit;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmit = emit;')
       shader.fragmentShader =
-        'varying float vEmit;\n' +
+        'varying float vEmit;\nuniform float uNight;\n' +
         shader.fragmentShader.replace(
           '#include <emissivemap_fragment>',
-          '#include <emissivemap_fragment>\n if (vEmit > 1.5) totalEmissiveRadiance += vec3(2.4, 0.25, 0.2); else if (vEmit > 0.5) totalEmissiveRadiance += vec3(2.8, 2.6, 2.2);',
+          '#include <emissivemap_fragment>\n if (vEmit > 1.5) totalEmissiveRadiance += vec3(2.4, 0.25, 0.2) * (0.3 + 0.7 * uNight); else if (vEmit > 0.5) totalEmissiveRadiance += vec3(2.8, 2.6, 2.2) * (0.2 + 0.8 * uNight);',
         )
     }
     return m
-  }, [])
+  }, [night])
   const beams = useRef<THREE.InstancedMesh>(null!)
   const beamMat = useMemo(
     () =>
@@ -134,6 +136,7 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
     const b = beams.current
     if (!m || !b || cars.length === 0) return
     beamMat.uniforms.uNight!.value = atmosphere.night
+    night.value = atmosphere.night
     const { mat, pos, q, up, one, zero } = tmp
     const step = Math.min(dt, 0.05)
     for (let i = 0; i < cars.length; i++) {

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import type { City, Dir } from '../city/types'
+import { useFrame } from '@react-three/fiber'
 import { sidewalkWidth, streetWidth } from './Districts'
+import { atmosphere } from './atmosphere'
 
 const DASH = new THREE.BoxGeometry(0.55, 0.012, 0.06).translate(0, 0.006, 0)
 const POLE = new THREE.BoxGeometry(0.05, 1.7, 0.05).translate(0, 0.85, 0)
@@ -128,6 +130,10 @@ export function LampPosts({ lamps }: { lamps: Placed[] }) {
       m.computeBoundingSphere()
     }
   }, [lamps])
+  useFrame(() => {
+    mats.head.emissiveIntensity = 0.05 + 0.95 * atmosphere.night
+    mats.pool.opacity = 0.55 * atmosphere.night
+  })
   const n = Math.max(1, lamps.length)
   return (
     <>
