@@ -121,6 +121,8 @@ function Lens({ city }: { city: City }) {
   const heightScale = useStore((s) => s.heightScale)
   const setHeightScale = useStore((s) => s.setHeightScale)
   const hideGenerated = useStore((s) => s.hideGenerated)
+  const rain = useStore((s) => s.rain)
+  const setRain = useStore((s) => s.setRain)
   const toggleGenerated = useStore((s) => s.toggleGenerated)
   const showCoupling = useStore((s) => s.showCoupling)
   const setShowCoupling = useStore((s) => s.setShowCoupling)
@@ -169,6 +171,10 @@ function Lens({ city }: { city: City }) {
             <input type="checkbox" className="accent-amber" checked={showCoupling} onChange={(e) => setShowCoupling(e.target.checked)} />
           </label>
         )}
+        <label className="flex cursor-pointer items-center justify-between" title="weather">
+          rain
+          <input type="checkbox" className="accent-amber" checked={rain} onChange={(e) => setRain(e.target.checked)} />
+        </label>
       </div>
     </section>
   )

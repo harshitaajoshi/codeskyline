@@ -19,6 +19,7 @@ import { Flames } from './Flames'
 import { Labels } from './Labels'
 import { Lots } from './Lots'
 import { Marker } from './Marker'
+import { Rain } from './Rain'
 import { Sky, makeSkyMaterial } from './Sky'
 import { Streets } from './Streets'
 import { Traffic } from './Traffic'
@@ -52,7 +53,8 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   // The extra passes are worth it up to a mid-sized city; beyond that the
   // frame budget goes to the buildings.
   const n = city.files.length
-  const wet = n <= 4000
+  const rain = useStore((s) => s.rain)
+  const wet = n <= 4000 || (rain && n <= 12000)
   const traffic = n <= 30000
   // The sun sits low on the horizon: long shadows, and the sky glows on its side.
   const sun = useMemo(() => new THREE.Vector3(cx + size * 0.85, size * 0.22, cz - size * 0.5), [cx, cz, size])
@@ -111,6 +113,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <Flames city={city} timeline={timeline} />
       <FireLights city={city} timeline={timeline} />
       <Cranes city={city} timeline={timeline} />
+      <Rain />
       <Coupling city={city} timeline={timeline} />
       <Suspense fallback={null}>
         <Labels city={city} />
@@ -170,24 +173,28 @@ function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Ve
     const s = Math.min(1, Math.max(0, (frac - 0.3) / 0.65))
     const night = s * s * (3 - 2 * s)
     atmosphere.night = night
+    // Rain fades in over a second; it darkens the day and thickens the haze.
+    const wantRain = useStore.getState().rain ? 1 : 0
+    atmosphere.rain += (wantRain - atmosphere.rain) * 0.04
+    const rain = atmosphere.rain
     const h = hemi.current
     const d = dir.current
     if (h) {
       h.color.copy(DAY.skyColor).lerp(DUSK.skyColor, night)
       h.groundColor.copy(DAY.groundColor).lerp(DUSK.groundColor, night)
-      h.intensity = DAY.hemiIntensity + (DUSK.hemiIntensity - DAY.hemiIntensity) * night
+      h.intensity = (DAY.hemiIntensity + (DUSK.hemiIntensity - DAY.hemiIntensity) * night) * (1 - 0.35 * rain)
     }
     if (d) {
       d.color.copy(DAY.sunColor).lerp(DUSK.sunColor, night)
-      d.intensity = DAY.sunIntensity + (DUSK.sunIntensity - DAY.sunIntensity) * night
+      d.intensity = (DAY.sunIntensity + (DUSK.sunIntensity - DAY.sunIntensity) * night) * (1 - 0.6 * rain)
       // The sun climbs during the day and sits on the horizon at dusk.
       d.position.set(sun.x, sun.y + size * 0.6 * (1 - night), sun.z)
     }
     if (scene.fog instanceof THREE.Fog) {
       scene.fog.color.copy(DAY.fog).lerp(DUSK.fog, night)
       // Clear air by day, haze at dusk.
-      scene.fog.near = size * (2.2 - 1.6 * night)
-      scene.fog.far = size * (9 - 5 * night)
+      scene.fog.near = size * (2.2 - 1.6 * night) * (1 - 0.5 * rain)
+      scene.fog.far = size * (9 - 5 * night) * (1 - 0.35 * rain)
     }
     if (scene.background instanceof THREE.Color) scene.background.copy(DAY.background).lerp(DUSK.background, night)
     scene.environmentIntensity = 0.6 + 0.5 * night

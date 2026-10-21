@@ -44,6 +44,15 @@ interface State {
   /** Story event pinned open on the timeline (index into timeline.story). */
   pinnedEvent: number | null
   setPinnedEvent: (i: number | null) => void
+  /** Weather: rain over the city. */
+  rain: boolean
+  setRain: (v: boolean) => void
+  /** The cinematic flythrough is running; the HUD steps aside. */
+  filming: boolean
+  setFilming: (v: boolean) => void
+  /** Bumped to ask the scene for a postcard (PNG of the canvas, no HUD). */
+  snapshot: number
+  requestSnapshot: () => void
 
   setCity: (c: City) => void
   setLoading: () => void
@@ -95,6 +104,12 @@ export const useStore = create<State>((set, get) => ({
   setSimulateAuthor: (simulateAuthor) => set({ simulateAuthor }),
   pinnedEvent: null,
   setPinnedEvent: (pinnedEvent) => set({ pinnedEvent }),
+  rain: false,
+  setRain: (rain) => set({ rain }),
+  filming: false,
+  setFilming: (filming) => set({ filming }),
+  snapshot: 0,
+  requestSnapshot: () => set((s) => ({ snapshot: s.snapshot + 1 })),
   setCity: (city) => {
     const last = Math.max(0, city.timeline.keyframes.length - 1)
     set({
