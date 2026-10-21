@@ -4,6 +4,7 @@ import { SAMPLES, loadSample } from '../city/load'
 import { formatNum } from '../city/scales'
 import type { City } from '../city/types'
 import { Scene } from '../scene/Scene'
+import { Wordmark } from './Wordmark'
 
 const STAGE_COPY: Record<string, string> = {
   queued: 'waiting for an analyzer',
@@ -80,9 +81,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
       <div className="relative">
         {/* Nav */}
         <header className="mx-auto flex max-w-6xl items-center justify-between px-6 pt-6 text-[13px]">
-          <div className="font-display text-[17px] uppercase">
-            Code<span className="text-amber">Skyline</span>
-          </div>
+          <Wordmark size={18} />
           <nav className="text-ivory/60 flex items-center gap-6 font-mono text-xs tracking-wide">
             <a className="hover:text-ivory uppercase" href="https://github.com/harshitaajoshi/codeskyline/tree/main/action" target="_blank" rel="noreferrer">
               (01) PR action

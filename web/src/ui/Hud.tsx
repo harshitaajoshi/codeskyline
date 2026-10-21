@@ -10,6 +10,7 @@ import { Glyph, MODE_GLYPH } from './glyphs'
 import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from '../scene/Coupling'
 import { Insights } from './Insights'
+import { Wordmark } from './Wordmark'
 
 /**
  * Four regions on a strict grid: a top line, the Lens column on the left,
@@ -41,7 +42,7 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
   if (walking) return <WalkHud city={city} />
   return (
     <div className="text-ivory">
-      <div className="scrim-top pointer-events-none absolute inset-x-0 top-0 h-24" />
+      <div className="scrim-top pointer-events-none absolute inset-x-0 top-0 h-32" />
       <TopLine city={city} onOpenFile={onOpenFile} onHome={onHome} />
       <Lens city={city} />
       <Insights city={city} />
@@ -61,31 +62,12 @@ function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => v
   const setTourStep = useStore((s) => s.setTourStep)
   const [owner, ...rest] = city.repo.name.split('/')
   return (
-    <div className="rise txt pointer-events-none absolute inset-x-6 top-5 flex items-end justify-between">
-      <div className="flex items-end gap-8">
-        <div>
-          <button className="font-display pointer-events-auto text-[15px] uppercase hover:opacity-80" onClick={onHome}>
-            Code<span className="text-amber">Skyline</span>
-          </button>
-          <div className="pointer-events-auto mt-1 font-mono text-[12px]">
-            <span className="text-ivory/45">{owner}/</span>
-            {rest.join('/') || city.repo.name}
-            {city.repo.url && (
-              <a className="text-ivory/40 hover:text-ivory ml-1.5 inline-block align-middle transition" href={city.repo.url} target="_blank" rel="noreferrer" title="open on GitHub">
-                <Glyph.external width={11} height={11} />
-              </a>
-            )}
-          </div>
+    <div className="rise txt pointer-events-none absolute inset-x-6 top-5">
+      <div className="flex items-center justify-between">
+        <div className="pointer-events-auto">
+          <Wordmark size={16} onClick={onHome} />
         </div>
-        <dl className="hidden items-end gap-7 md:flex">
-          <Num v={compact(city.stats.files)} l="files" />
-          <Num v={compact(city.stats.lines)} l="lines" />
-          <Num v={compact(city.repo.commits)} l="commits" />
-          <Num v={String(city.authors.length)} l="authors" />
-          {city.stats.burning > 0 && <Num v={String(city.stats.burning)} l="on fire" fire />}
-        </dl>
-      </div>
-      <div className="pointer-events-auto flex items-center gap-6 font-mono text-[10.5px] tracking-[0.16em] uppercase">
+        <div className="pointer-events-auto flex items-center gap-7 font-mono text-[10.5px] tracking-[0.18em] uppercase">
         <button className="lnk text-ivory/60 hover:text-ivory" onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}>
           find
         </button>
@@ -99,6 +81,25 @@ function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => v
         <button className="lnk text-ivory/60 hover:text-ivory" onClick={() => setTourStep(0)}>
           tour
         </button>
+        </div>
+      </div>
+      <div className="mt-5 flex items-end gap-10">
+        <div className="pointer-events-auto font-mono text-[12px]">
+          <span className="text-ivory/45">{owner}/</span>
+          {rest.join('/') || city.repo.name}
+          {city.repo.url && (
+            <a className="text-ivory/40 hover:text-ivory ml-1.5 inline-block align-middle transition" href={city.repo.url} target="_blank" rel="noreferrer" title="open on GitHub">
+              <Glyph.external width={11} height={11} />
+            </a>
+          )}
+        </div>
+        <dl className="hidden items-end gap-9 md:flex">
+          <Num v={compact(city.stats.files)} l="files" />
+          <Num v={compact(city.stats.lines)} l="lines" />
+          <Num v={compact(city.repo.commits)} l="commits" />
+          <Num v={String(city.authors.length)} l="authors" />
+          {city.stats.burning > 0 && <Num v={String(city.stats.burning)} l="on fire" fire />}
+        </dl>
       </div>
     </div>
   )
@@ -106,8 +107,8 @@ function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => v
 
 function Num({ v, l, fire }: { v: string; l: string; fire?: boolean }) {
   return (
-    <div className="flex items-baseline gap-1.5">
-      <dd className={`font-display text-[22px] leading-none tabular-nums ${fire ? 'text-fire' : ''}`}>{v}</dd>
+    <div className="flex items-baseline gap-2">
+      <dd className={`font-display text-[20px] leading-none tabular-nums ${fire ? 'text-fire' : ''}`}>{v}</dd>
       <dt className="idx">{l}</dt>
     </div>
   )
@@ -125,7 +126,7 @@ function Lens({ city }: { city: City }) {
   const setShowCoupling = useStore((s) => s.setShowCoupling)
   const modes = MODES.filter((m) => m.id !== 'diff' || city.diff)
   return (
-    <section className="region rise pointer-events-auto absolute top-[4.25rem] left-6 max-h-[calc(100vh-13rem)] w-[15.5rem] overflow-y-auto px-5 pt-3 pb-4 [scrollbar-width:none]" style={{ animationDelay: '0.1s' }}>
+    <section className="region rise pointer-events-auto absolute top-[6.75rem] left-6 max-h-[calc(100vh-18.5rem)] w-[15.5rem] overflow-y-auto px-5 pt-3 pb-4 [scrollbar-width:none]" style={{ animationDelay: '0.1s' }}>
       <div className="label">Lens</div>
       <ol className="mt-2">
         {modes.map((m, n) => {
@@ -384,7 +385,7 @@ function Inspector({ city }: { city: City }) {
   const name = f.path.slice(f.path.lastIndexOf('/') + 1)
   const dir = f.path.slice(0, f.path.lastIndexOf('/'))
   return (
-    <section key={selected} className="region rise pointer-events-auto absolute top-[4.25rem] right-6 max-h-[calc(100vh-13rem)] w-[21rem] overflow-y-auto px-5 pt-3 pb-4 text-[12.5px] [scrollbar-width:none]" style={{ animationDuration: '0.35s' }}>
+    <section key={selected} className="region rise pointer-events-auto absolute top-[6.75rem] right-6 max-h-[calc(100vh-18.5rem)] w-[21rem] overflow-y-auto px-5 pt-3 pb-4 text-[12.5px] [scrollbar-width:none]" style={{ animationDuration: '0.35s' }}>
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="label truncate">{dir ? `${dir}/` : 'root'}</div>

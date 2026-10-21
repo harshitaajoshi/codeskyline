@@ -27,12 +27,12 @@ export function Insights({ city }: { city: City }) {
   if (selected != null) return null
   if (!open)
     return (
-      <button onClick={() => setOpen(true)} className="rise txt lnk text-ivory/55 hover:text-ivory pointer-events-auto absolute top-[4.5rem] right-6 font-mono text-[10.5px] tracking-[0.16em] uppercase">
+      <button onClick={() => setOpen(true)} className="rise txt lnk text-ivory/55 hover:text-ivory pointer-events-auto absolute top-[7rem] right-6 font-mono text-[10.5px] tracking-[0.16em] uppercase">
         {insights.length} findings
       </button>
     )
   return (
-    <section className="region rise pointer-events-auto absolute top-[4.25rem] right-6 max-h-[calc(100vh-13rem)] w-[21rem] overflow-y-auto px-5 pt-3 pb-4 [scrollbar-width:none]" style={{ animationDelay: '0.2s' }}>
+    <section className="region rise pointer-events-auto absolute top-[6.75rem] right-6 max-h-[calc(100vh-18.5rem)] w-[21rem] overflow-y-auto px-5 pt-3 pb-4 [scrollbar-width:none]" style={{ animationDelay: '0.2s' }}>
       <header className="flex items-center justify-between">
         <span className="label">Findings</span>
         <button className="text-ivory/35 hover:text-ivory transition" onClick={() => setOpen(false)} aria-label="collapse">

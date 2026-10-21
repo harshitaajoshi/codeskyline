@@ -16,46 +16,44 @@ const STEPS: Step[] = [
   {
     title: 'This repository is a city',
     body: 'Every file is a building; taller means more lines of code. Folders are the districts, and the streets between them follow the directory tree.',
-    place: 'left-1/2 top-24 -translate-x-1/2',
+    place: 'left-1/2 top-36 -translate-x-1/2',
   },
   {
     title: 'The buildings on fire are hotspots',
     body: 'They change often and are complex, which is where bugs tend to be fixed. Click any building to see who owns it and how it has changed.',
-    place: 'left-1/2 top-24 -translate-x-1/2',
+    place: 'left-1/2 top-36 -translate-x-1/2',
     mode: 'hotspots',
   },
   {
     title: 'The amber bridges are hidden dependencies',
     body: 'Two buildings are bridged when they keep changing in the same commits, even if nothing imports one from the other. Click a building to see everything it drags along.',
-    place: 'left-1/2 top-24 -translate-x-1/2',
+    place: 'left-1/2 top-36 -translate-x-1/2',
     mode: 'churn',
   },
   {
     title: 'Change the lens',
     body: 'Recolor the whole city by churn, by who maintains each file, by language, or by age. In Owners, click a person to simulate them leaving and watch what goes dark.',
-    place: 'left-72 top-28',
+    place: 'left-[18rem] top-[7rem]',
     mode: 'owners',
   },
   {
     title: 'Travel through time',
     body: 'Press space, or drag the slider, to watch the city grow commit by commit. The diamonds on the track are the moments that shaped it: rewrites, demolitions, people arriving and leaving.',
-    place: 'left-1/2 bottom-28 -translate-x-1/2',
+    place: 'left-1/2 bottom-56 -translate-x-1/2',
     mode: 'churn',
     play: true,
   },
   {
     title: 'Start from the insights',
     body: 'The panel on the right says what the history found, in plain sentences. Each one is a button that shows it. Drag to orbit, scroll to zoom, ⌘K to find a file, Walk to stroll the streets.',
-    place: 'right-[22.5rem] top-24',
+    place: 'right-[23rem] top-[7rem]',
   },
 ]
 
+/** The tour opens with every city; `?tour=0` suppresses it, and skipping is one click. */
 export function shouldShowTour(): boolean {
-  try {
-    return !localStorage.getItem(KEY)
-  } catch {
-    return true
-  }
+  void KEY
+  return true
 }
 
 export function Tour({ city: _city }: { city: City }) {
