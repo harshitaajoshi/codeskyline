@@ -13,6 +13,7 @@ import type { City } from '../city/types'
 import { Buildings } from './Buildings'
 import { Coupling } from './Coupling'
 import { Districts } from './Districts'
+import { FireLights } from './FireLights'
 import { Flames } from './Flames'
 import { Labels } from './Labels'
 import { Lots } from './Lots'
@@ -100,6 +101,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <Lots city={city} timeline={timeline} />
       <Buildings city={city} timeline={timeline} interactive={!hero} />
       <Flames city={city} timeline={timeline} />
+      <FireLights city={city} timeline={timeline} />
       <Coupling city={city} timeline={timeline} />
       <Suspense fallback={null}>
         <Labels city={city} />

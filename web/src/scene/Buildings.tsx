@@ -8,6 +8,7 @@ import { height, type HeightScale } from '../city/scales'
 import { linesAt, type TimelineData } from '../city/timeline'
 import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from './Coupling'
+import { Glow } from './Glow'
 import type { City } from '../city/types'
 
 const LOT_MARGIN = 0.12 // gap between a building and its lot edge
@@ -347,6 +348,7 @@ export function Buildings({
         onClick={interactive ? onClick : undefined}
       />
       <Crowns city={city} visible={visible} uniforms={uniforms} aFile={aFile} aVariant={aVariant.crown} aBody={aVariant.body} />
+      <Glow city={city} timeline={timeline} uniforms={uniforms} />
     </>
   )
 }

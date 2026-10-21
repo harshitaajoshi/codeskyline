@@ -7,6 +7,27 @@ import type { TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
 import { sidewalkWidth, streetWidth } from './Districts'
 import { furnishedPlates } from './Streets'
+import { atmosphere } from './atmosphere'
+
+// Headlight beam on the road: a quad in front of the car, bright at the
+// bumper and fading out, drawn additively.
+const BEAM = new THREE.PlaneGeometry(2.2, 1.1).rotateX(-Math.PI / 2).translate(1.3, 0.012, 0)
+const BEAM_VERT = /* glsl */ `
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+}`
+const BEAM_FRAG = /* glsl */ `
+varying vec2 vUv;
+uniform float uNight;
+void main() {
+  float along = 1.0 - vUv.x;            // 1 at the bumper, 0 at the far end
+  float across = 1.0 - abs(vUv.y * 2.0 - 1.0);
+  float spread = mix(0.35, 1.0, 1.0 - along);
+  float a = pow(along, 1.4) * smoothstep(0.0, spread, across) * 0.55 * uNight;
+  gl_FragColor = vec4(vec3(1.0, 0.93, 0.78) * a, a);
+}`
 
 const MAX_CARS = 1400
 const RECENT = 2 * 365 * 86400
@@ -76,10 +97,25 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
     }
     return m
   }, [])
+  const beams = useRef<THREE.InstancedMesh>(null!)
+  const beamMat = useMemo(
+    () =>
+      new THREE.ShaderMaterial({
+        vertexShader: BEAM_VERT,
+        fragmentShader: BEAM_FRAG,
+        uniforms: { uNight: { value: 1 } },
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        toneMapped: false,
+      }),
+    [],
+  )
   useEffect(() => () => {
     geometry.dispose()
     material.dispose()
-  }, [geometry, material])
+    beamMat.dispose()
+  }, [geometry, material, beamMat])
 
   const { loops, cars, minBorn } = useMemo(() => buildTraffic(city, timeline), [city, timeline])
   const live = useMemo(() => loops.map((l) => (minBorn[l.dir] ?? -1) >= 0 && (minBorn[l.dir] ?? 0) <= k), [loops, minBorn, k])
@@ -95,7 +131,9 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
 
   useFrame((_, dt) => {
     const m = mesh.current
-    if (!m || cars.length === 0) return
+    const b = beams.current
+    if (!m || !b || cars.length === 0) return
+    beamMat.uniforms.uNight!.value = atmosphere.night
     const { mat, pos, q, up, one, zero } = tmp
     const step = Math.min(dt, 0.05)
     for (let i = 0; i < cars.length; i++) {
@@ -104,6 +142,7 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
       if (!live[c.loop]) {
         mat.compose(zero, q, zero)
         m.setMatrixAt(i, mat)
+        b.setMatrixAt(i, mat)
         continue
       }
       c.s += c.v * step
@@ -128,12 +167,19 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
       q.setFromAxisAngle(up, yaw)
       mat.compose(pos, q, one)
       m.setMatrixAt(i, mat)
+      b.setMatrixAt(i, mat)
     }
     m.instanceMatrix.needsUpdate = true
+    b.instanceMatrix.needsUpdate = true
   })
 
   if (cars.length === 0) return null
-  return <instancedMesh ref={mesh} args={[geometry, material, Math.max(1, cars.length)]} frustumCulled={false} raycast={() => null} castShadow />
+  return (
+    <>
+      <instancedMesh ref={mesh} args={[geometry, material, Math.max(1, cars.length)]} frustumCulled={false} raycast={() => null} castShadow />
+      <instancedMesh ref={beams} args={[BEAM, beamMat, Math.max(1, cars.length)]} frustumCulled={false} raycast={() => null} renderOrder={3} />
+    </>
+  )
 }
 
 function buildTraffic(city: City, timeline: TimelineData): { loops: Loop[]; cars: Car[]; minBorn: Int32Array } {
