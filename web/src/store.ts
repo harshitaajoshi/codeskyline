@@ -142,6 +142,7 @@ export const useStore = create<State>((set, get) => ({
   consumeFlyTo: () => set({ flyTo: null }),
   setPointer: (x, y) => set({ pointer: { x, y } }),
   setT: (t) => {
+    if (!Number.isFinite(t)) return
     const city = get().city
     const last = Math.max(0, (city?.timeline.keyframes.length ?? 1) - 1)
     const clamped = Math.min(last, Math.max(0, t))

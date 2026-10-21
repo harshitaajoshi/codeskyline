@@ -61,7 +61,7 @@ try {
   await send('Runtime.enable')
   await send('Log.enable')
   await send('Page.enable')
-  await send('Emulation.setDeviceMetricsOverride', { width: +width, height: +height, deviceScaleFactor: 1, mobile: false })
+  await send('Emulation.setDeviceMetricsOverride', { width: +width, height: +height, deviceScaleFactor: +(process.env.SHOT_DPR ?? 1), mobile: false })
   await send('Page.navigate', { url })
   await sleep(+waitMs)
   // SHOT_JS="..." runs in the page before capture (scroll, click), then settles.

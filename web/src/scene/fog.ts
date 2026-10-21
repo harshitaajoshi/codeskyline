@@ -48,8 +48,8 @@ export function patchHeightFog(): void {
     float fogFactor = 1.0 - exp( - fogDensity * fogDensity * vFogDepth * vFogDepth );
   #else
     // Haze ceiling: the ground is fully inside it, rooftops above it are clear.
-    float ceil = fogFar * 0.035;
-    float low = 1.0 - smoothstep( 0.0, ceil, vFogY );
+    float hazeTop = fogFar * 0.035;
+    float low = 1.0 - smoothstep( 0.0, hazeTop, vFogY );
     float dist = smoothstep( fogNear, fogFar, vFogDepth );
     // Distance fog is strongest down in the haze; a little ground haze shows
     // even nearby so streets look like they have air over them.

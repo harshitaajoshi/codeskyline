@@ -172,7 +172,8 @@ function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Ve
   })
   useFrame(() => {
     const last = Math.max(1, city.timeline.keyframes.length - 1)
-    const frac = useStore.getState().t / last
+    const t = useStore.getState().t
+    const frac = Number.isFinite(t) ? t / last : 1
     const s = Math.min(1, Math.max(0, (frac - 0.3) / 0.65))
     const night = s * s * (3 - 2 * s)
     atmosphere.night = night
