@@ -192,7 +192,11 @@ function HeroCamera({ city }: { city: City }) {
   const ref = useRef<CameraControlsImpl>(null!)
   const { cx, cz, size } = cityBounds(city)
   useEffect(() => {
-    void ref.current?.setLookAt(cx + size * 0.5, size * 0.22, cz + size * 0.7, cx, size * 0.06, cz, false)
+    const c = ref.current
+    if (!c) return
+    void c.setLookAt(cx + size * 0.36, size * 0.16, cz + size * 0.5, cx, size * 0.05, cz, false)
+    // Push the city toward the right half; the headline sits on the left.
+    void c.setFocalOffset(-size * 0.2, size * 0.03, 0, false)
   }, [cx, cz, size])
   useFrame((_, dt) => {
     const c = ref.current
