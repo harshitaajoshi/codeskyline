@@ -1,8 +1,8 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react'
 import type * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { CameraControls } from '@react-three/drei'
-import { Bloom, EffectComposer, N8AO, Vignette } from '@react-three/postprocessing'
+import { CameraControls, MeshReflectorMaterial } from '@react-three/drei'
+import { Bloom, EffectComposer, N8AO, TiltShift2, Vignette } from '@react-three/postprocessing'
 import type CameraControlsImpl from 'camera-controls'
 import { useStore } from '../store'
 import { BEATS, reducedMotion, storyTargets, useStory } from '../story'
@@ -18,7 +18,11 @@ import { Labels } from './Labels'
 import { Lots } from './Lots'
 import { Marker } from './Marker'
 import { Sky } from './Sky'
+import { Traffic } from './Traffic'
 import { Walk } from './Walk'
+import { patchHeightFog } from './fog'
+
+patchHeightFog()
 
 const tlCache = new WeakMap<City, TimelineData>()
 export function timelineFor(city: City): TimelineData {
@@ -39,6 +43,12 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   const { cx, cz, size } = cityBounds(city)
   const timeline = useMemo(() => timelineFor(city), [city])
   const setPointer = useStore((s) => s.setPointer)
+  const walking = useStore((s) => s.walking)
+  // The extra passes are worth it up to a mid-sized city; beyond that the
+  // frame budget goes to the buildings.
+  const n = city.files.length
+  const wet = n <= 12000
+  const traffic = n <= 30000
 
   return (
     <Canvas
@@ -51,21 +61,24 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       style={hero ? { pointerEvents: 'none' } : undefined}
     >
       <color attach="background" args={['#0a0a0a']} />
-      <fog attach="fog" args={['#0d0d0d', size * 1.2, size * 4.5]} />
+      <fog attach="fog" args={['#0d0d0d', size * 0.6, size * 4]} />
       <Sky radius={size * 6} />
-      <hemisphereLight args={['#9a9a9a', '#1a1a1a', 0.5]} />
+      <hemisphereLight args={['#8d94a3', '#141414', 0.8]} />
+      {/* A low sun: long shadows across the districts are most of the depth. */}
       <directionalLight
-        position={[cx + size * 0.5, size * 0.9, cz - size * 0.3]}
-        intensity={1.3}
-        color="#f3efe6"
+        position={[cx + size * 0.85, size * 0.26, cz - size * 0.5]}
+        intensity={2.1}
+        color="#ffd8ae"
         castShadow
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-size}
-        shadow-camera-right={size}
-        shadow-camera-top={size}
-        shadow-camera-bottom={-size}
-        shadow-camera-far={size * 3}
-        shadow-bias={-0.0004}
+        shadow-mapSize={[3072, 3072]}
+        shadow-camera-left={-size * 1.15}
+        shadow-camera-right={size * 1.15}
+        shadow-camera-top={size * 1.15}
+        shadow-camera-bottom={-size * 1.15}
+        shadow-camera-near={0.5}
+        shadow-camera-far={size * 4}
+        shadow-bias={-0.0003}
+        shadow-normalBias={0.02}
       />
       <pointLight position={[cx, size * 0.25, cz]} intensity={size * 1.5} distance={size * 1.6} color="#ffb070" decay={2} />
 
@@ -76,6 +89,8 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <DepthTuning size={size} />
 
       <Districts city={city} />
+      {wet && <WetStreets city={city} />}
+      {traffic && <Traffic city={city} timeline={timeline} />}
       <Lots city={city} timeline={timeline} />
       <Buildings city={city} timeline={timeline} interactive={!hero} />
       <Flames city={city} timeline={timeline} />
@@ -92,9 +107,38 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <EffectComposer>
         <N8AO aoRadius={3} intensity={2.5} distanceFalloff={1} halfRes />
         <Bloom luminanceThreshold={1} mipmapBlur intensity={0.9} radius={0.55} />
+        {/* Tilt-shift: a focus band across the middle, so the city reads as a model on a table. */}
+        {walking ? <></> : <TiltShift2 blur={hero ? 0.14 : 0.07} taper={hero ? 0.6 : 0.75} start={[0, 0.54]} end={[1, 0.54]} samples={6} />}
         <Vignette eskil={false} offset={0.25} darkness={0.75} />
       </EffectComposer>
     </Canvas>
+  )
+}
+
+/**
+ * Wet streets: a blurred planar reflection just above the root plate. The
+ * district plates sit higher and cover it, so only the streets between them
+ * reflect the windows and the fire. Rendered once more per frame, hence the
+ * size gate in Scene.
+ */
+function WetStreets({ city }: { city: City }) {
+  const root = city.dirs.find((d) => d.depth === 0) ?? city.dirs[0]
+  if (!root) return null
+  return (
+    <mesh rotation-x={-Math.PI / 2} position={[root.x + root.w / 2, 0.085, root.z + root.d / 2]} receiveShadow>
+      <planeGeometry args={[root.w, root.d]} />
+      <MeshReflectorMaterial
+        blur={[260, 80]}
+        resolution={768}
+        mixBlur={0.9}
+        mixStrength={9}
+        depthScale={0}
+        color="#232323"
+        roughness={0.7}
+        metalness={0.6}
+        mirror={0.9}
+      />
+    </mesh>
   )
 }
 
