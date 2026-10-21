@@ -17,5 +17,25 @@ export async function loadFile(file: globalThis.File): Promise<City> {
 export function parseCity(text: string): City {
   const v: unknown = JSON.parse(text)
   if (!isCity(v)) throw new Error('not a CodeSkyline city document')
-  return v
+  return normalizeCity(v)
+}
+
+/**
+ * Cities analyzed by older versions of csky lack newer fields. Fill them so
+ * the viewer never has to check; the format version stays 1 because nothing
+ * existing changed meaning.
+ */
+export function normalizeCity(c: City): City {
+  c.couplings ??= []
+  c.timeline ??= { keyframes: [], events: [], story: [] }
+  c.timeline.story ??= []
+  c.timeline.events ??= []
+  c.timeline.keyframes ??= []
+  c.stats.removed ??= 0
+  for (const d of c.dirs) d.bus ??= 0
+  for (const f of c.files) {
+    f.maxLines ??= f.lines
+    f.owners ??= []
+  }
+  return c
 }

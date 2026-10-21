@@ -5,6 +5,7 @@ import { fetchCity } from './city/api'
 import { Scene } from './scene/Scene'
 import { Hud } from './ui/Hud'
 import { Home } from './ui/Home'
+import { ErrorBoundary } from './ui/ErrorBoundary'
 
 type Route = { kind: 'home' } | { kind: 'sample'; id: string } | { kind: 'repo'; owner: string; name: string; sha?: string }
 
@@ -86,8 +87,12 @@ export function App() {
         void openFiles(e.dataTransfer.files)
       }}
     >
-      {showCity && <Scene city={city} />}
-      {showCity && <Hud city={city} onOpenFile={() => fileInput.current?.click()} onHome={() => navigate('/')} />}
+      {showCity && (
+        <ErrorBoundary onReset={() => navigate('/')}>
+          <Scene city={city} />
+          <Hud city={city} onOpenFile={() => fileInput.current?.click()} onHome={() => navigate('/')} />
+        </ErrorBoundary>
+      )}
       {route.kind === 'home' && <Home onOpen={onOpen} onSample={(id) => navigate(`/?sample=${id}`)} />}
       <input ref={fileInput} type="file" accept=".json" className="hidden" onChange={(e) => void openFiles(e.target.files)} />
 
