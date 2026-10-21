@@ -19,10 +19,16 @@ import { Wordmark } from './Wordmark'
  */
 export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const walking = useStore((s) => s.walking)
+  const filming = useStore((s) => s.filming)
   const setTourStep = useStore((s) => s.setTourStep)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && useStore.getState().filming) {
+        useStore.getState().setFilming(false)
+        return
+      }
+
       if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'INPUT') return
       const s = useStore.getState()
       if (s.walking) return
@@ -40,6 +46,7 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
   }, [city, setTourStep])
 
   if (walking) return <WalkHud city={city} />
+  if (filming) return <FilmHud city={city} />
   return (
     <div className="text-ivory">
       <div className="scrim-top pointer-events-none absolute inset-x-0 top-0 h-32" />
@@ -60,6 +67,8 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
 function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const setWalking = useStore((s) => s.setWalking)
   const setTourStep = useStore((s) => s.setTourStep)
+  const setFilming = useStore((s) => s.setFilming)
+  const requestSnapshot = useStore((s) => s.requestSnapshot)
   const [owner, ...rest] = city.repo.name.split('/')
   return (
     <div className="rise txt pointer-events-none absolute inset-x-6 top-5">
@@ -75,6 +84,12 @@ function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => v
           walk
         </button>
         <ShareLink city={city} />
+        <button className="lnk text-ivory/60 hover:text-ivory" onClick={requestSnapshot} title="save a 2x picture of the city">
+          postcard
+        </button>
+        <button className="lnk text-ivory/60 hover:text-ivory" onClick={() => setFilming(true)} title="a forty second flythrough; esc stops it">
+          film
+        </button>
         <button className="lnk text-ivory/60 hover:text-ivory" onClick={onOpenFile}>
           open
         </button>
@@ -495,6 +510,22 @@ function CoupledWith({ city, id }: { city: City; id: number }) {
           )
         })}
       </ul>
+    </div>
+  )
+}
+
+/** While filming: just the name of the city and how to stop. */
+function FilmHud({ city }: { city: City }) {
+  const setFilming = useStore((s) => s.setFilming)
+  return (
+    <div className="text-ivory pointer-events-none absolute inset-0">
+      <div className="rise absolute bottom-8 left-8 font-mono text-[11px] tracking-[0.18em] uppercase">
+        <span className="text-ivory/85">{city.repo.name}</span>
+        <span className="text-ivory/35 ml-4">filming</span>
+        <button className="lnk text-ivory/45 hover:text-ivory pointer-events-auto ml-4" onClick={() => setFilming(false)}>
+          esc to stop
+        </button>
+      </div>
     </div>
   )
 }

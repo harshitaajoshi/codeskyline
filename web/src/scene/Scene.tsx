@@ -16,11 +16,13 @@ import { Cranes } from './Cranes'
 import { Districts } from './Districts'
 import { FireLights } from './FireLights'
 import { Flames } from './Flames'
+import { Flythrough } from './Flythrough'
 import { Labels } from './Labels'
 import { Lots } from './Lots'
 import { Marker } from './Marker'
 import { Rain } from './Rain'
 import { Sky, makeSkyMaterial } from './Sky'
+import { Snapshot } from './Snapshot'
 import { Streets } from './Streets'
 import { Traffic } from './Traffic'
 import { Walk } from './Walk'
@@ -122,6 +124,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       <Marker city={city} timeline={timeline} beam={!hero} />
       {hero ? <HeroCamera city={city} /> : <Camera city={city} />}
       {!hero && <Playback />}
+      {!hero && <Snapshot city={city} />}
       {!hero && <Walk city={city} timeline={timeline} />}
 
       <EffectComposer>
@@ -333,15 +336,18 @@ function Camera({ city }: { city: City }) {
   // write the camera transform every frame and would fight the walk.
   if (walking) return null
   return (
-    <CameraControls
-      ref={ref}
-      makeDefault
-      minDistance={2}
-      maxDistance={size * 4}
-      maxPolarAngle={Math.PI / 2 - 0.02}
-      smoothTime={0.6}
-      draggingSmoothTime={0.12}
-    />
+    <>
+      <CameraControls
+        ref={ref}
+        makeDefault
+        minDistance={2}
+        maxDistance={size * 4}
+        maxPolarAngle={Math.PI / 2 - 0.02}
+        smoothTime={0.6}
+        draggingSmoothTime={0.12}
+      />
+      <Flythrough city={city} controls={ref} />
+    </>
   )
 }
 
