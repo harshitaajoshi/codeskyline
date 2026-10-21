@@ -43,9 +43,9 @@ export function Insights({ city }: { city: City }) {
         {insights.map((i, n) => (
           <li key={i.key} className="rule">
             <button onClick={i.run} className="group flex w-full items-start gap-4 py-3.5 text-left">
-              <span className="idx mt-[5px] w-5 shrink-0">{String(n + 1).padStart(2, '0')}</span>
+              <span className="idx mt-[5px] w-7 shrink-0">({String(n + 1).padStart(2, '0')})</span>
               <span className="min-w-0 flex-1">
-                <span className={`font-display block text-[17px] leading-[1.2] ${i.tone === 'fire' ? 'text-fire' : 'text-ivory'}`}>{i.title}</span>
+                <span className={`font-display block text-[15px] leading-[1.25] font-bold ${i.tone === 'fire' ? 'text-fire' : 'text-ivory'}`}>{i.title}</span>
                 <span className="text-ivory/50 mt-1 line-clamp-2 text-[11.5px] leading-[1.45]">{i.detail}</span>
                 <span className="text-amber/80 group-hover:text-amber mt-1.5 inline-block font-mono text-[10.5px] tracking-[0.14em] uppercase transition">
                   {i.action} <span className="inline-block transition-transform group-hover:translate-x-0.5">→</span>

@@ -97,7 +97,7 @@ export function Timeline({ city }: { city: City }) {
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-4">
               <div className="flex min-w-0 items-baseline gap-4">
-                <span className="font-display shrink-0 text-[24px] leading-none tracking-[-0.01em] tabular-nums">
+                <span className="font-display shrink-0 text-[22px] leading-none tabular-nums">
                   {date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
                 </span>
                 <span className="text-ivory/45 min-w-0 truncate font-mono text-[11px]">
@@ -222,7 +222,7 @@ function StoryCaption({ city }: { city: City }) {
         <div className="label">
           {when} · {KIND_WORD[e.kind] ?? e.kind}
         </div>
-        <div className="font-display mt-0.5 text-[20px] leading-tight">{e.title}</div>
+        <div className="font-display mt-0.5 text-[18px] leading-tight">{e.title}</div>
         <div className="text-ivory/60 text-[12px]">{e.detail}</div>
       </div>
       {pinned != null && (

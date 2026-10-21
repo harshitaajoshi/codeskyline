@@ -51,14 +51,14 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       onPointerMove={(e) => !hero && setPointer(e.clientX, e.clientY)}
       style={hero ? { pointerEvents: 'none' } : undefined}
     >
-      <color attach="background" args={['#05070d']} />
-      <fog attach="fog" args={['#0c1020', size * 1.2, size * 4.5]} />
+      <color attach="background" args={['#0a0a0a']} />
+      <fog attach="fog" args={['#0d0d0d', size * 1.2, size * 4.5]} />
       <Sky radius={size * 6} />
-      <hemisphereLight args={['#6f8cc9', '#1a1f2e', 0.55]} />
+      <hemisphereLight args={['#9a9a9a', '#1a1a1a', 0.5]} />
       <directionalLight
         position={[cx + size * 0.5, size * 0.9, cz - size * 0.3]}
         intensity={1.3}
-        color="#dfe8ff"
+        color="#f3efe6"
         castShadow
         shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-size}
@@ -72,7 +72,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
 
       <mesh rotation-x={-Math.PI / 2} position={[cx, -0.02, cz]} receiveShadow>
         <planeGeometry args={[size * 10, size * 10]} />
-        <meshStandardMaterial color="#0f1322" roughness={1} />
+        <meshStandardMaterial color="#121212" roughness={1} />
       </mesh>
       <DepthTuning size={size} />
 

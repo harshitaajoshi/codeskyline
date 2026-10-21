@@ -1,18 +1,29 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-bg: #0b0f1a;
-  --color-panel: #121829;
-  --color-line: #243049;
-  --color-ink: #e6ebf5;
-  --color-muted: #8a95ad;
-  --color-accent: #7cc4ff;
-  --color-fire: #ff6a3d;
-  --color-amber: #f2b36b;
-  --color-ivory: #f3efe6;
+  --color-bg: #0c0c0c;
+  --color-panel: #141414;
+  --color-line: #262626;
+  --color-ink: #f1efe8;
+  --color-muted: #8a8a85;
+  --color-accent: #e7633b;
+  --color-fire: #ff5a3c;
+  --color-amber: #e7633b;
+  --color-ivory: #f1efe8;
   --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, monospace;
-  --font-display: 'Instrument Serif', Georgia, serif;
+  --font-display: 'Archivo', 'Inter', ui-sans-serif, sans-serif;
+  --font-serif: 'Instrument Serif', Georgia, serif;
+}
+
+/* Archivo is the headline voice: heavy, tight, usually in caps. */
+.font-display {
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.font-serif {
+  font-weight: 400;
+  letter-spacing: 0;
 }
 
 @keyframes rise {
@@ -59,11 +70,11 @@ canvas {
 /* Regions: no card, no border. A faint gradient so type reads over lights, a
    rule on top, air inside. The grid does the work. */
 .region {
-  background: linear-gradient(180deg, rgb(5 7 13 / 0.9) 0%, rgb(5 7 13 / 0.8) 100%);
+  background: linear-gradient(180deg, rgb(12 12 12 / 0.9) 0%, rgb(12 12 12 / 0.8) 100%);
   border-top: 1px solid color-mix(in oklab, var(--color-ivory) 14%, transparent);
 }
 .region-up {
-  background: linear-gradient(0deg, rgb(5 7 13 / 0.92) 0%, rgb(5 7 13 / 0.72) 100%);
+  background: linear-gradient(0deg, rgb(12 12 12 / 0.92) 0%, rgb(12 12 12 / 0.72) 100%);
   border-top: 1px solid color-mix(in oklab, var(--color-ivory) 14%, transparent);
 }
 .rule {
@@ -72,7 +83,7 @@ canvas {
 .idx {
   font-family: var(--font-mono);
   font-size: 10px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.12em;
   color: color-mix(in oklab, var(--color-ivory) 32%, transparent);
   font-variant-numeric: tabular-nums;
 }
@@ -94,7 +105,7 @@ canvas {
   background-size: 100% 1px;
 }
 .scrim-top {
-  background: linear-gradient(180deg, rgb(5 7 13 / 0.7) 0%, transparent 100%);
+  background: linear-gradient(180deg, rgb(12 12 12 / 0.7) 0%, transparent 100%);
 }
 
 /* Frosted glass, the one surface the HUD is built from. */
@@ -121,7 +132,7 @@ canvas {
 .label {
   font-family: var(--font-mono);
   font-size: 10.5px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.22em;
   text-transform: uppercase;
   color: color-mix(in oklab, var(--color-ivory) 45%, transparent);
 }
@@ -168,7 +179,7 @@ canvas {
   margin-top: -4.5px;
   border-radius: 50%;
   background: var(--color-amber);
-  box-shadow: 0 0 0 4px rgb(5 7 13 / 0.95);
+  box-shadow: 0 0 0 4px rgb(12 12 12 / 0.95);
   transition: transform 0.15s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 .scrub:hover::-webkit-slider-thumb,

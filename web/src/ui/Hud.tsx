@@ -64,7 +64,7 @@ function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => v
     <div className="rise txt pointer-events-none absolute inset-x-6 top-5 flex items-end justify-between">
       <div className="flex items-end gap-8">
         <div>
-          <button className="pointer-events-auto text-[15px] font-semibold tracking-[-0.03em] hover:opacity-80" onClick={onHome}>
+          <button className="font-display pointer-events-auto text-[15px] uppercase hover:opacity-80" onClick={onHome}>
             Code<span className="text-amber">Skyline</span>
           </button>
           <div className="pointer-events-auto mt-1 font-mono text-[12px]">
@@ -134,7 +134,7 @@ function Lens({ city }: { city: City }) {
           return (
             <li key={m.id}>
               <button onClick={() => setMode(m.id)} className="group flex w-full items-center gap-3 py-[7px] text-left">
-                <span className="idx w-5">{String(n + 1).padStart(2, '0')}</span>
+                <span className="idx w-7">({String(n + 1).padStart(2, '0')})</span>
                 <span className={`transition-colors ${active ? 'text-amber' : 'text-ivory/40 group-hover:text-ivory/70'}`}>
                   <G width={14} height={14} />
                 </span>
@@ -388,7 +388,7 @@ function Inspector({ city }: { city: City }) {
       <header className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="label truncate">{dir ? `${dir}/` : 'root'}</div>
-          <div className="font-display mt-1 text-[24px] leading-tight break-all">{name}</div>
+          <div className="font-display mt-1 text-[22px] leading-tight break-all">{name}</div>
           <div className="text-ivory/45 mt-1 font-mono text-[10.5px]">
             {f.removed ? `demolished · peaked at ${formatNum(f.maxLines)} lines` : f.lang}
             {f.generated ? ' · generated' : ''}
@@ -582,7 +582,7 @@ function Search({ city }: { city: City }) {
                     setOpen(false)
                   }}
                 >
-                  <span className="idx w-5">{String(i + 1).padStart(2, '0')}</span>
+                  <span className="idx w-7">({String(i + 1).padStart(2, '0')})</span>
                   <span className="truncate">{r.path}</span>
                   {i === 0 && <kbd className="ml-auto">↵</kbd>}
                 </button>

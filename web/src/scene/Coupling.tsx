@@ -70,7 +70,7 @@ export function Coupling({ city, timeline }: { city: City; timeline: TimelineDat
           {/* Say what the bridge means, on the bridge: the partner, how often, how reliably. */}
           {strong && i < 8 && b.dist > 3 && (
             <Billboard position={b.pts[Math.floor(SEGMENTS * 0.62)]!.clone().add(new THREE.Vector3(0, 0.9, 0))} follow>
-              <Text fontSize={0.95} color="#ffd9a8" anchorX="center" anchorY="bottom" outlineWidth={0.06} outlineColor="#0b0f1a" renderOrder={5}>
+              <Text fontSize={0.95} color="#ffb69a" anchorX="center" anchorY="bottom" outlineWidth={0.06} outlineColor="#0c0c0c" renderOrder={5}>
                 {`${b.name}  ${b.support}×  ${Math.round(b.confidence * 100)}%`}
               </Text>
             </Billboard>
@@ -87,7 +87,7 @@ function Bridge({ points, confidence, strong }: { points: THREE.Vector3[]; confi
     const m = ref.current?.material as THREE.ShaderMaterial & { dashOffset: number } | undefined
     if (m) m.dashOffset -= dt * 6 // flow away from the focused building
   })
-  const color = strong ? '#ffc98a' : '#b58a55'
+  const color = strong ? '#ff8a5c' : '#a8583a'
   return (
     <Line
       ref={ref}

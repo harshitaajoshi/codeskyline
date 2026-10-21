@@ -5,7 +5,7 @@ import type { TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
 
 const SLAB = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
-const BASE = new THREE.Color('#141a28')
+const BASE = new THREE.Color('#161616')
 const DELETED = new THREE.Color('#6e1f26') // diff lens: a file this change removed
 
 /**

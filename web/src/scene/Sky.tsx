@@ -33,9 +33,9 @@ export function Sky({ radius }: { radius: number }) {
         depthWrite: false,
         fog: false,
         uniforms: {
-          uZenith: { value: new THREE.Color('#04060d') },
-          uHorizon: { value: new THREE.Color('#141c33') },
-          uGlow: { value: new THREE.Color('#3b2a4a') },
+          uZenith: { value: new THREE.Color('#050505') },
+          uHorizon: { value: new THREE.Color('#1c1b1a') },
+          uGlow: { value: new THREE.Color('#3a2418') },
         },
       }),
     [],

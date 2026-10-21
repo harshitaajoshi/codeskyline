@@ -13,7 +13,7 @@ export function Districts({ city }: { city: City }) {
   const plates = useRef<THREE.InstancedMesh>(null!)
   const curbs = useRef<THREE.InstancedMesh>(null!)
   const plateMat = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 0.92, metalness: 0 }), [])
-  const curbMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#2a3550', roughness: 0.8, metalness: 0 }), [])
+  const curbMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#3a3836', roughness: 0.8, metalness: 0 }), [])
 
   useEffect(() => {
     const mat = new THREE.Matrix4()
@@ -27,7 +27,7 @@ export function Districts({ city }: { city: City }) {
       scl.set(d.w, y + 0.08, d.d)
       mat.compose(pos, q, scl)
       plates.current.setMatrixAt(i, mat)
-      color.setHSL(0.63, 0.18, 0.11 + Math.min(0.2, d.depth * 0.03))
+      color.setHSL(0.08, 0.02, 0.1 + Math.min(0.2, d.depth * 0.03))
       plates.current.setColorAt(i, color)
       // Curb: a hair wider and a hair lower.
       scl.set(d.w + 0.18, y + 0.055, d.d + 0.18)

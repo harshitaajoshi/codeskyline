@@ -80,18 +80,18 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
       <div className="relative">
         {/* Nav */}
         <header className="mx-auto flex max-w-6xl items-center justify-between px-6 pt-6 text-[13px]">
-          <div className="text-[17px] font-semibold tracking-[-0.03em]">
+          <div className="font-display text-[17px] uppercase">
             Code<span className="text-amber">Skyline</span>
           </div>
           <nav className="text-ivory/60 flex items-center gap-6 font-mono text-xs tracking-wide">
-            <a className="hover:text-ivory" href="https://github.com/harshitaajoshi/codeskyline/tree/main/action" target="_blank" rel="noreferrer">
-              pr action
+            <a className="hover:text-ivory uppercase" href="https://github.com/harshitaajoshi/codeskyline/tree/main/action" target="_blank" rel="noreferrer">
+              (01) PR action
             </a>
-            <a className="hover:text-ivory" href="https://github.com/harshitaajoshi/codeskyline/blob/main/docs/benchmarks.md" target="_blank" rel="noreferrer">
-              benchmarks
+            <a className="hover:text-ivory uppercase" href="https://github.com/harshitaajoshi/codeskyline/blob/main/docs/benchmarks.md" target="_blank" rel="noreferrer">
+              (02) Benchmarks
             </a>
-            <a className="hover:text-ivory" href="https://github.com/harshitaajoshi/codeskyline" target="_blank" rel="noreferrer">
-              source ↗
+            <a className="hover:text-ivory uppercase" href="https://github.com/harshitaajoshi/codeskyline" target="_blank" rel="noreferrer">
+              (03) Source ↗
             </a>
           </nav>
         </header>
@@ -99,13 +99,15 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
         {/* Hero */}
         <section className="mx-auto flex min-h-[88vh] max-w-6xl flex-col justify-center px-6">
           <div className="max-w-2xl">
-            <div className="rise text-amber/90 font-mono text-xs tracking-[0.2em] uppercase" style={{ animationDelay: '0.05s' }}>
-              A git history, rendered
+            <div className="rise text-ivory/55 font-mono text-xs tracking-[0.22em] uppercase" style={{ animationDelay: '0.05s' }}>
+              (00) A git history, rendered
             </div>
-            <h1 className="rise font-display mt-5 text-[clamp(3rem,7.5vw,6.5rem)] leading-[0.95] tracking-[-0.01em]" style={{ animationDelay: '0.15s' }}>
-              Every repository
+            <h1 className="rise font-display mt-5 text-[clamp(3rem,7.2vw,6.4rem)] leading-[0.92] font-black uppercase" style={{ animationDelay: '0.15s' }}>
+              Every
               <br />
-              is a city.
+              repository
+              <br />
+              <span className="text-ivory/90">is a</span> <span className="font-serif text-amber normal-case italic">city.</span>
             </h1>
             <p className="rise text-ivory/70 mt-7 max-w-md text-lg leading-relaxed" style={{ animationDelay: '0.3s' }}>
               Paste one. Walk its streets, watch fifteen years of commits build it, and find the buildings that are on fire.
@@ -183,17 +185,17 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
         {/* Legend */}
         <section id="legend" className="mx-auto max-w-6xl scroll-mt-10 px-6 pb-8">
           <div className="hairline flex items-end justify-between border-b pb-3">
-            <h2 className="font-display text-3xl">How to read a city</h2>
-            <span className="text-ivory/45 font-mono text-xs tracking-wide">legend</span>
+            <h2 className="font-display text-[26px] uppercase">How to read a city</h2>
+            <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">(04) Legend</span>
           </div>
           <ol className="grid gap-x-10 gap-y-10 pt-10 sm:grid-cols-2 lg:grid-cols-4">
             {LEGEND.map((l, i) => (
               <li key={l.title} className="group">
                 <div className="text-ivory/45 flex items-center justify-between font-mono text-xs">
-                  <span>{String(i + 1).padStart(2, '0')}</span>
+                  <span>({String(i + 1).padStart(2, '0')})</span>
                   <l.Glyph />
                 </div>
-                <div className="font-display mt-4 text-2xl leading-tight">{l.title}</div>
+                <div className="font-display mt-4 text-[19px] leading-tight uppercase">{l.title}</div>
                 <p className="text-ivory/60 mt-2 text-sm leading-relaxed">{l.body}</p>
               </li>
             ))}
@@ -204,8 +206,8 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
         {gallery.length > 0 && (
           <section className="mx-auto max-w-6xl px-6 pt-20 pb-8">
             <div className="hairline flex items-end justify-between border-b pb-3">
-              <h2 className="font-display text-3xl">Recently built</h2>
-              <span className="text-ivory/45 font-mono text-xs tracking-wide">{gallery.length} cities</span>
+              <h2 className="font-display text-[26px] uppercase">Recently built</h2>
+              <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">(05) {gallery.length} cities</span>
             </div>
             <ul className="divide-ivory/10 divide-y">
               {gallery.map((g) => (

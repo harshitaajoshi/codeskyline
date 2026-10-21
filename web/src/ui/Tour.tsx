@@ -95,7 +95,7 @@ export function Tour({ city: _city }: { city: City }) {
       <div className="label">
         {String(step + 1).padStart(2, '0')} / {String(STEPS.length).padStart(2, '0')}
       </div>
-      <div className="font-display mt-2 text-[22px] leading-tight">{s.title}</div>
+      <div className="font-display mt-2 text-[20px] leading-tight">{s.title}</div>
       <p className="text-ivory/65 mt-2 text-[13px] leading-relaxed">{s.body}</p>
       <div className="mt-4 flex items-center gap-6 font-mono text-[10.5px] tracking-[0.14em] uppercase">
         <button className="lnk text-amber" onClick={() => (step + 1 < STEPS.length ? setStep(step + 1) : finish())}>

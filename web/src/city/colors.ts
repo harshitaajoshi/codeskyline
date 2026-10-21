@@ -18,7 +18,7 @@ export const GPU_MODE: Record<ColorMode, number> = { churn: 1, activity: 2, hots
 
 export const DIFF_ADDED: RGB = hex('#5fd38d')
 export const DIFF_DELETED: RGB = hex('#ff5c5c')
-export const DIFF_UNCHANGED: RGB = hex('#232a3b')
+export const DIFF_UNCHANGED: RGB = hex('#262626')
 
 export const OWNER_SLOTS = 16
 
@@ -40,15 +40,15 @@ export function gradient(stops: RGB[], t: number): RGB {
   return lerp(stops[i]!, stops[i + 1]!, x - i)
 }
 
-export const GRAY: RGB = hex('#3a4256')
-export const DIM: RGB = hex('#262c3b')
+export const GRAY: RGB = hex('#3b3b3b')
+export const DIM: RGB = hex('#232323')
 
 export const CHURN: RGB[] = ['#2f4a7a', '#2d8fa8', '#8fd36b', '#f5d442', '#f28b2b', '#e8382b'].map(hex)
 export const ACTIVITY: RGB[] = ['#1f2a44', '#2b4c7e', '#3f8fd2', '#8fe3ff', '#ffffff'].map(hex)
 const AGE: RGB[] = ['#f8f1a6', '#8ad5c9', '#4a7aa8', '#2b3659'].map(hex) // new → old
 export const FIRE: RGB[] = [GRAY, hex('#f5a623'), hex('#ff6a3d'), hex('#ff2d2d')]
-export const RUIN: RGB = hex('#171c2a')
-export const GHOST: RGB = hex('#1c1f2b') // owners mode: nobody active owns this
+export const RUIN: RGB = hex('#171717')
+export const GHOST: RGB = hex('#1e1d1c') // owners mode: nobody active owns this
 
 // Linguist-ish colors for common languages; everything else hashes to a palette.
 const LANG: Record<string, string> = {

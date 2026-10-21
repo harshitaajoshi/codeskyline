@@ -17,7 +17,7 @@ export function Labels({ city }: { city: City }) {
           position={[l.x, l.y, l.z]}
           rotation={[-Math.PI / 2, 0, 0]}
           fontSize={l.size}
-          color="#d6e0f5"
+          color="#d9d6cf"
           fillOpacity={0.95}
           anchorX="left"
           anchorY="top"

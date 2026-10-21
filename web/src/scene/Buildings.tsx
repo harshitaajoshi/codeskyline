@@ -14,8 +14,8 @@ const BOX = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
 const LOT_MARGIN = 0.12 // gap between a building and its lot edge
 
 const HOVER: RGB = [1, 1, 1]
-const PARTNER: RGB = [0.98, 0.84, 0.6] // coupled to the selection
-const SELECT: RGB = [0.95, 0.7, 0.42] // amber, matching the HUD accent
+const PARTNER: RGB = [1.0, 0.68, 0.5] // coupled to the selection
+const SELECT: RGB = [0.91, 0.39, 0.23] // orange, matching the HUD accent
 const HEIGHT_MODE: Record<HeightScale, number> = { sqrt: 0, log: 1, linear: 2 }
 
 /**

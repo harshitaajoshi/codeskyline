@@ -131,5 +131,5 @@ function applyUrlState(params: URLSearchParams, keyframes: number) {
 }
 
 function Center({ children }: { children: React.ReactNode }) {
-  return <div className="absolute inset-0 flex items-center justify-center text-sm text-muted">{children}</div>
+  return <div className="text-muted absolute inset-0 flex items-center justify-center font-mono text-xs tracking-[0.2em] uppercase">{children}</div>
 }
