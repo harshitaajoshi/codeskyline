@@ -96,7 +96,7 @@ export function Timeline({ city }: { city: City }) {
 
           <div className="min-w-0 flex-1">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="font-display text-[19px] leading-none whitespace-nowrap">
+              <span className="text-[14px] leading-none font-medium tracking-[-0.01em] whitespace-nowrap tabular-nums">
                 {date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
               <span className="text-ivory/50 truncate font-mono text-[11px]">

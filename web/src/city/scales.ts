@@ -49,13 +49,13 @@ export function githubFileUrl(city: City, f: File): string | undefined {
 }
 
 export function formatDate(unix: number): string {
-  if (!unix) return '—'
+  if (!unix) return 'n/a'
   return new Date(unix * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
 /** Compact ISO date for mono table cells. */
 export function formatISO(unix: number): string {
-  if (!unix) return '—'
+  if (!unix) return 'n/a'
   return new Date(unix * 1000).toISOString().slice(0, 10)
 }
 

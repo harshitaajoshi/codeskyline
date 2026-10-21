@@ -53,8 +53,8 @@ function TopBar({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => vo
   return (
     <div className="rise pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 p-4">
       <div className="glass glass-pill pointer-events-auto flex h-10 items-center pr-4 pl-4">
-        <button className="font-display text-[17px] leading-none tracking-tight hover:opacity-80" onClick={onHome} title="home">
-          Code<span className="text-amber italic">Skyline</span>
+        <button className="text-[15px] leading-none font-semibold tracking-[-0.03em] hover:opacity-80" onClick={onHome} title="home">
+          Code<span className="text-amber">Skyline</span>
         </button>
         <span className="hairline mx-3 h-4 border-l" />
         <span className="font-mono text-[12.5px]">
@@ -354,16 +354,16 @@ function Inspector({ city }: { city: City }) {
             <div className="text-fire flex items-start gap-2">
               <Glyph.hotspots className="mt-0.5 shrink-0" />
               <span>
-                {['', 'Smoking', 'On fire', 'Inferno']![f.fire]} — changes often and is complex <span className="text-fire/60 font-mono">({f.hotspot.toFixed(2)})</span>
+                {['', 'Smoking', 'On fire', 'Inferno']![f.fire]}: changes often and is complex <span className="text-fire/60 font-mono">({f.hotspot.toFixed(2)})</span>
               </span>
             </div>
           )}
-          {f.ghost && <div className="text-ivory/55">Ghost town — none of its owners has committed in over a year.</div>}
+          {f.ghost && <div className="text-ivory/55">Ghost town: none of its owners has committed in over a year.</div>}
           {d && d.files >= 3 && (
             <div className={d.bus <= 1 ? 'text-fire/90' : 'text-ivory/55'}>
               <span className="font-mono">{d.path || '(root)'}</span> · bus factor {d.bus}
-              {d.bus === 1 && ' — one person holds this district'}
-              {d.bus === 0 && ' — most of this district has no active owner'}
+              {d.bus === 1 && ': one person holds this district'}
+              {d.bus === 0 && ': most of this district has no active owner'}
             </div>
           )}
         </div>

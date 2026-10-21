@@ -80,8 +80,8 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
       <div className="relative">
         {/* Nav */}
         <header className="mx-auto flex max-w-6xl items-center justify-between px-6 pt-6 text-[13px]">
-          <div className="font-display text-xl tracking-tight">
-            Code<span className="italic text-amber">Skyline</span>
+          <div className="text-[17px] font-semibold tracking-[-0.03em]">
+            Code<span className="text-amber">Skyline</span>
           </div>
           <nav className="text-ivory/60 flex items-center gap-6 font-mono text-xs tracking-wide">
             <a className="hover:text-ivory" href="https://github.com/harshitaajoshi/codeskyline/tree/main/action" target="_blank" rel="noreferrer">
@@ -105,7 +105,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
             <h1 className="rise font-display mt-5 text-[clamp(3rem,7.5vw,6.5rem)] leading-[0.95] tracking-[-0.01em]" style={{ animationDelay: '0.15s' }}>
               Every repository
               <br />
-              is a <span className="italic">city.</span>
+              is a city.
             </h1>
             <p className="rise text-ivory/70 mt-7 max-w-md text-lg leading-relaxed" style={{ animationDelay: '0.3s' }}>
               Paste one. Walk its streets, watch fifteen years of commits build it, and find the buildings that are on fire.
@@ -234,7 +234,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
 
         <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-6 pt-16 pb-10 font-mono text-xs">
           <span className="text-ivory/40">
-            Built from <span className="text-ivory/70">git log</span> alone — no tracker, no uploads of your code.
+            Built from <span className="text-ivory/70">git log</span> alone. No tracker, no uploads of your code.
           </span>
           <span className="text-ivory/40">
             <code>csky analyze ./repo</code> runs it locally · MIT
@@ -261,7 +261,7 @@ const LEGEND = [
   },
   {
     title: 'Folders are districts',
-    body: 'Streets follow the directory tree, so the layout is the architecture — nothing is placed arbitrarily.',
+    body: 'Streets follow the directory tree, so the layout is the architecture. Nothing is placed arbitrarily.',
     Glyph: () => (
       <svg width="40" height="28" viewBox="0 0 40 28" {...stroke}>
         <rect x="2" y="2" width="36" height="24" rx="1" />
@@ -271,7 +271,7 @@ const LEGEND = [
   },
   {
     title: 'Hotspots burn',
-    body: 'Files that change often and are complex — measured on twelve repositories, the top twenty catch 70% of the files that need fixes next year.',
+    body: 'Files that change often and are complex. Measured on twelve repositories, the top twenty catch 70% of the files that need fixes next year.',
     Glyph: () => (
       <svg width="40" height="28" viewBox="0 0 40 28" {...stroke}>
         <path d="M14 27V12h12v15" />
@@ -282,7 +282,7 @@ const LEGEND = [
   },
   {
     title: 'Time travels',
-    body: 'Scrub the timeline and the city rebuilds itself commit by commit — on the GPU, so it stays smooth at fifty thousand buildings.',
+    body: 'Scrub the timeline and the city rebuilds itself commit by commit, on the GPU, so it stays smooth at fifty thousand buildings.',
     Glyph: () => (
       <svg width="40" height="28" viewBox="0 0 40 28" {...stroke}>
         <path d="M2 22h36" />

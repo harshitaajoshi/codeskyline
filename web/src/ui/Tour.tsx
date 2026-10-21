@@ -15,7 +15,7 @@ interface Step {
 const STEPS: Step[] = [
   {
     title: 'This repository is a city',
-    body: 'Every file is a building — taller means more lines of code. Folders are the districts, and the streets between them follow the directory tree.',
+    body: 'Every file is a building; taller means more lines of code. Folders are the districts, and the streets between them follow the directory tree.',
     place: 'left-1/2 top-24 -translate-x-1/2',
   },
   {
@@ -32,14 +32,14 @@ const STEPS: Step[] = [
   },
   {
     title: 'Travel through time',
-    body: 'Press space, or drag the slider, to watch the city grow commit by commit — buildings rise, get demolished, and catch fire.',
+    body: 'Press space, or drag the slider, to watch the city grow commit by commit: buildings rise, get demolished, and catch fire.',
     place: 'left-1/2 bottom-28 -translate-x-1/2',
     mode: 'churn',
     play: true,
   },
   {
     title: 'Get around',
-    body: 'Drag to orbit, scroll to zoom. ⌘K jumps to a file. Try 🚶 Walk to stroll the streets in first person (WASD, Esc to leave).',
+    body: 'Drag to orbit, scroll to zoom. ⌘K jumps to a file. Try Walk to stroll the streets in first person (WASD, Esc to leave).',
     place: 'left-1/2 top-24 -translate-x-1/2',
   },
 ]
