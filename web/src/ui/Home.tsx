@@ -65,9 +65,9 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
 
   useEffect(() => {
     if (job?.status === 'ready') {
-      const [r, sha] = job.key.split('@')
-      const [owner, name] = r!.split('/')
-      onOpen(owner!, name!, sha)
+      // Keys look like owner/name@sha~format; the format tag is not part of the sha.
+      const m = /^([^/]+)\/([^@]+)@([0-9a-f]+)/.exec(job.key)
+      if (m) onOpen(m[1]!, m[2]!, m[3])
     }
   }, [job, onOpen])
 
