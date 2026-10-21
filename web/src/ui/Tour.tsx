@@ -52,7 +52,7 @@ export function shouldShowTour(): boolean {
   }
 }
 
-export function Tour({ city }: { city: City }) {
+export function Tour({ city: _city }: { city: City }) {
   const step = useStore((s) => s.tourStep)
   const setStep = useStore((s) => s.setTourStep)
   const setMode = useStore((s) => s.setMode)
@@ -85,24 +85,24 @@ export function Tour({ city }: { city: City }) {
     setStep(null)
   }
   return (
-    <div className={`panel pointer-events-auto absolute z-20 w-[22rem] max-w-[90vw] p-4 shadow-2xl ${s.place}`}>
-      <div className="text-muted mb-1 text-[11px] font-medium tracking-wide uppercase">
-        {step + 1} / {STEPS.length} · {city.repo.name}
+    <div key={step} className={`glass rise text-ivory pointer-events-auto absolute z-20 w-[23rem] max-w-[90vw] p-5 ${s.place}`} style={{ animationDuration: '0.5s' }}>
+      <div className="label">
+        {String(step + 1).padStart(2, '0')} / {String(STEPS.length).padStart(2, '0')}
       </div>
-      <div className="text-base font-semibold">{s.title}</div>
-      <p className="text-muted mt-1.5 text-sm leading-relaxed">{s.body}</p>
-      <div className="mt-3 flex items-center justify-between">
-        <button className="text-muted text-xs hover:text-ink" onClick={finish}>
-          Skip tour
+      <div className="font-display mt-2 text-[22px] leading-tight">{s.title}</div>
+      <p className="text-ivory/65 mt-2 text-[13.5px] leading-relaxed">{s.body}</p>
+      <div className="mt-4 flex items-center justify-between">
+        <button className="text-ivory/45 hover:text-ivory font-mono text-[11.5px] transition" onClick={finish}>
+          skip
         </button>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-1">
           {step > 0 && (
-            <button className="text-muted rounded-md px-3 py-1.5 text-sm hover:text-ink" onClick={() => setStep(step - 1)}>
+            <button className="btn h-8 rounded-full px-3" onClick={() => setStep(step - 1)}>
               Back
             </button>
           )}
           <button
-            className="bg-accent/20 text-accent hover:bg-accent/30 rounded-md px-3 py-1.5 text-sm font-medium"
+            className="bg-amber text-bg h-8 rounded-full px-4 text-[12.5px] font-medium transition-transform hover:scale-[1.03] active:scale-95"
             onClick={() => (step + 1 < STEPS.length ? setStep(step + 1) : finish())}
           >
             {step + 1 < STEPS.length ? 'Next' : 'Explore'}

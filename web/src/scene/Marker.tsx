@@ -54,11 +54,11 @@ export function Marker({ city, timeline }: { city: City; timeline: TimelineData 
     <group visible={show}>
       <mesh ref={ring} position={[cx, plateY, cz]} rotation-x={-Math.PI / 2} renderOrder={4}>
         <ringGeometry args={[r, r + 0.25, 48]} />
-        <meshBasicMaterial color="#7cc4ff" transparent opacity={0.7} depthWrite={false} toneMapped={false} />
+        <meshBasicMaterial color="#f2b36b" transparent opacity={0.7} depthWrite={false} toneMapped={false} />
       </mesh>
       <mesh ref={beam} position={[cx, h + 8, cz]} renderOrder={4}>
         <cylinderGeometry args={[r * 0.3, r * 0.5, 16, 16, 1, true]} />
-        <meshBasicMaterial color="#7cc4ff" transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+        <meshBasicMaterial color="#f2b36b" transparent opacity={0.2} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
       </mesh>
     </group>
   )

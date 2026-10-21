@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useStore } from '../store'
 import { timeAt } from '../city/timeline'
 import type { City } from '../city/types'
+import { Glyph } from './glyphs'
 
 const SPEEDS = [4, 12, 30, 60]
 
@@ -35,7 +36,6 @@ async function recordTimelapse(city: City, onProgress: (p: number) => void): Pro
       }
     })
   })
-  // Hold the final frame for a beat so the video does not end abruptly.
   await new Promise((r) => setTimeout(r, 1200))
   rec.stop()
   await done
@@ -56,8 +56,8 @@ export function Timeline({ city }: { city: City }) {
   const setPlaying = useStore((s) => s.setPlaying)
   const setSpeed = useStore((s) => s.setSpeed)
   const goLive = useStore((s) => s.goLive)
-
   const [recording, setRecording] = useState<number | null>(null)
+
   const kf = city.timeline.keyframes
   const last = Math.max(0, kf.length - 1)
   const live = t >= last
@@ -79,33 +79,36 @@ export function Timeline({ city }: { city: City }) {
   }
 
   const author = cur ? city.authors[cur.author] : undefined
+  const pct = last ? (t / last) * 100 : 100
+
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-3 flex justify-center px-3">
-      <div className="panel pointer-events-auto w-[46rem] max-w-full px-4 py-2">
-        <div className="flex items-center gap-3">
+    <div className="rise pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4" style={{ animationDelay: '0.2s' }}>
+      <div className="glass pointer-events-auto w-[48rem] max-w-full px-4 pt-3 pb-2.5">
+        <div className="flex items-center gap-4">
           <button
             onClick={() => setPlaying(!playing)}
-            className="bg-accent/20 text-accent hover:bg-accent/30 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm"
+            className="bg-amber text-bg flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 active:scale-95"
             aria-label={playing ? 'pause' : 'play'}
             title="space"
           >
-            {playing ? '❚❚' : '▶'}
+            {playing ? <Glyph.pause /> : <Glyph.play style={{ marginLeft: 1 }} />}
           </button>
+
           <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-2 text-xs">
-              <span className="font-medium whitespace-nowrap tabular-nums">
-                {date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="font-display text-[19px] leading-none whitespace-nowrap">
+                {date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
               </span>
-              <span className="text-muted truncate">
+              <span className="text-ivory/50 truncate font-mono text-[11px]">
                 {cur && (
                   <>
-                    <span className="font-mono">{cur.hash.slice(0, 7)}</span> {cur.subject}
-                    {author && <span className="opacity-70"> — {author.login ? `@${author.login}` : author.name}</span>}
+                    <span className="text-ivory/70">{cur.hash.slice(0, 7)}</span> {cur.subject}
+                    {author && <span className="text-ivory/35"> · {author.login ? `@${author.login}` : author.name}</span>}
                   </>
                 )}
               </span>
             </div>
-            <div className="relative mt-1">
+            <div className="relative mt-1.5">
               <input
                 type="range"
                 min={0}
@@ -116,10 +119,11 @@ export function Timeline({ city }: { city: City }) {
                   setPlaying(false)
                   setT(Number(e.target.value))
                 }}
-                className="accent-accent w-full"
+                className="scrub"
+                style={{ ['--p' as string]: `${pct}%` }}
                 aria-label="timeline"
               />
-              <div className="text-muted pointer-events-none relative h-3 text-[10px]">
+              <div className="text-ivory/35 pointer-events-none relative h-3 font-mono text-[10px]">
                 {years.map((y) => (
                   <span key={y.year} className="absolute -translate-x-1/2" style={{ left: `${(y.k / last) * 100}%` }}>
                     {y.year}
@@ -128,33 +132,34 @@ export function Timeline({ city }: { city: City }) {
               </div>
             </div>
           </div>
-          <select
-            className="bg-transparent text-xs text-muted outline-none"
-            value={speed}
-            onChange={(e) => setSpeed(Number(e.target.value))}
-            title="playback speed"
-          >
-            {SPEEDS.map((s) => (
-              <option key={s} value={s}>
-                {s === 12 ? '1×' : `${(s / 12).toFixed(s < 12 ? 1 : 0).replace('.0', '')}×`}
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={goLive}
-            className={`shrink-0 rounded-md px-2 py-1 text-xs ${live ? 'text-fire' : 'text-muted hover:text-ink'}`}
-            title="jump to HEAD"
-          >
-            ● {live ? 'now' : 'go to now'}
-          </button>
-          <button
-            onClick={() => void exportVideo()}
-            disabled={recording != null}
-            className="text-muted hover:text-ink shrink-0 rounded-md px-2 py-1 text-xs disabled:opacity-70"
-            title="play from the start and download a video of it"
-          >
-            {recording == null ? '⏺ export' : `⏺ ${Math.round(recording * 100)}%`}
-          </button>
+
+          <div className="flex shrink-0 items-center gap-1 self-start pt-0.5">
+            <select
+              className="text-ivory/60 hover:text-ivory h-8 cursor-pointer bg-transparent px-1 font-mono text-[11.5px] outline-none"
+              value={speed}
+              onChange={(e) => setSpeed(Number(e.target.value))}
+              title="playback speed"
+            >
+              {SPEEDS.map((s) => (
+                <option key={s} value={s}>
+                  {s === 12 ? '1×' : `${(s / 12).toFixed(s < 12 ? 1 : 0).replace('.0', '')}×`}
+                </option>
+              ))}
+            </select>
+            <button onClick={goLive} className={`btn h-8 rounded-full px-3 font-mono text-[11.5px] ${live ? 'text-amber' : ''}`} title="jump to HEAD">
+              <span className={`inline-block h-1.5 w-1.5 rounded-full ${live ? 'bg-amber' : 'bg-ivory/40'}`} />
+              {live ? 'now' : 'to now'}
+            </button>
+            <button
+              onClick={() => void exportVideo()}
+              disabled={recording != null}
+              className="btn h-8 rounded-full px-3 font-mono text-[11.5px] disabled:opacity-80"
+              title="play from the start and download a video of it"
+            >
+              <Glyph.record className={recording != null ? 'text-fire' : ''} />
+              {recording == null ? 'export' : `${Math.round(recording * 100)}%`}
+            </button>
+          </div>
         </div>
       </div>
     </div>
