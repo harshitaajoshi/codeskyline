@@ -33,6 +33,11 @@ interface State {
   setShowCoupling: (v: boolean) => void
   insightsOpen: boolean
   setInsightsOpen: (v: boolean) => void
+  insightIndex: number
+  setInsightIndex: (i: number) => void
+  /** Which dock popover is open. */
+  dockPanel: 'more' | null
+  setDockPanel: (p: 'more' | null) => void
   /** Owners lens: author whose departure is being simulated. */
   simulateAuthor: number | null
   setSimulateAuthor: (a: number | null) => void
@@ -82,6 +87,10 @@ export const useStore = create<State>((set, get) => ({
   setShowCoupling: (showCoupling) => set({ showCoupling }),
   insightsOpen: true,
   setInsightsOpen: (insightsOpen) => set({ insightsOpen }),
+  insightIndex: 0,
+  setInsightIndex: (insightIndex) => set({ insightIndex }),
+  dockPanel: null,
+  setDockPanel: (dockPanel) => set({ dockPanel }),
   simulateAuthor: null,
   setSimulateAuthor: (simulateAuthor) => set({ simulateAuthor }),
   pinnedEvent: null,
@@ -101,6 +110,9 @@ export const useStore = create<State>((set, get) => ({
       walking: false,
       simulateAuthor: null,
       pinnedEvent: null,
+      insightIndex: 0,
+      insightsOpen: true,
+      dockPanel: null,
       // A city built with a diff opens on the diff lens.
       mode: city.diff ? 'diff' : get().mode === 'diff' ? 'churn' : get().mode,
     })

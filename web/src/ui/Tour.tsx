@@ -32,21 +32,21 @@ const STEPS: Step[] = [
   },
   {
     title: 'Change the lens',
-    body: 'Recolor the whole city by churn, by who maintains each file, by language, or by age. In Owners, click a person to simulate them leaving and watch what goes dark.',
-    place: 'left-72 top-28',
+    body: 'The icons in the dock recolor the city: churn, activity, hotspots, owners, language, age. Hover one to see what it means. In Owners, click a person above the dock to simulate them leaving.',
+    place: 'left-1/2 bottom-32 -translate-x-1/2',
     mode: 'owners',
   },
   {
     title: 'Travel through time',
-    body: 'Press space, or drag the slider, to watch the city grow commit by commit. The diamonds on the track are the moments that shaped it: rewrites, demolitions, people arriving and leaving.',
-    place: 'left-1/2 bottom-28 -translate-x-1/2',
+    body: 'Press space, or drag the slider in the dock, to watch the city grow commit by commit. The diamonds on the track are the moments that shaped it: rewrites, demolitions, people arriving and leaving.',
+    place: 'left-1/2 bottom-32 -translate-x-1/2',
     mode: 'churn',
     play: true,
   },
   {
-    title: 'Start from the insights',
-    body: 'The panel on the right says what the history found, in plain sentences. Each one is a button that shows it. Drag to orbit, scroll to zoom, ⌘K to find a file, Walk to stroll the streets.',
-    place: 'right-[22.5rem] top-24',
+    title: 'Start from the findings',
+    body: 'The strip at the top says what the history found, one sentence at a time, with a button that proves it. Arrow keys move between them. Drag to orbit, scroll to zoom, ⌘K finds a file, the walker icon walks the streets.',
+    place: 'left-1/2 top-24 -translate-x-1/2',
   },
 ]
 

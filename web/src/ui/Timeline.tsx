@@ -11,7 +11,7 @@ const SPEEDS = [4, 12, 30, 60]
  * entirely in the browser, and downloads a .webm. The HUD is DOM, not
  * canvas, so the video is just the city.
  */
-async function recordTimelapse(city: City, onProgress: (p: number) => void): Promise<void> {
+export async function recordTimelapse(city: City, onProgress: (p: number) => void): Promise<void> {
   const canvas = document.querySelector('canvas')
   if (!canvas || typeof MediaRecorder === 'undefined') throw new Error('recording is not supported in this browser')
   const stream = canvas.captureStream(60)
@@ -21,7 +21,6 @@ async function recordTimelapse(city: City, onProgress: (p: number) => void): Pro
   const chunks: Blob[] = []
   rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data)
   const done = new Promise<void>((resolve) => (rec.onstop = () => resolve()))
-
   const s = useStore.getState()
   const last = Math.max(1, city.timeline.keyframes.length - 1)
   s.setT(0)
@@ -47,25 +46,68 @@ async function recordTimelapse(city: City, onProgress: (p: number) => void): Pro
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
 }
 
-export function Timeline({ city }: { city: City }) {
+/** Play button, date, and the scrubber with story marks: the left part of the dock. */
+export function Scrub({ city }: { city: City }) {
   const t = useStore((s) => s.t)
-  const k = useStore((s) => s.k)
   const playing = useStore((s) => s.playing)
-  const speed = useStore((s) => s.speed)
   const setT = useStore((s) => s.setT)
   const setPlaying = useStore((s) => s.setPlaying)
-  const setSpeed = useStore((s) => s.setSpeed)
-  const goLive = useStore((s) => s.goLive)
-  const [recording, setRecording] = useState<number | null>(null)
-
   const kf = city.timeline.keyframes
   const last = Math.max(0, kf.length - 1)
-  const live = t >= last
-  const cur = kf[k]
   const date = useMemo(() => new Date(timeAt(city, t) * 1000), [city, t])
   const years = useMemo(() => yearTicks(city), [city])
   if (kf.length < 2) return null
+  const pct = last ? (t / last) * 100 : 100
+  return (
+    <div className="flex items-center gap-3">
+      <button
+        onClick={() => setPlaying(!playing)}
+        className="bg-amber text-bg flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 active:scale-95"
+        aria-label={playing ? 'pause' : 'play'}
+        title="space"
+      >
+        {playing ? <Glyph.pause width={14} height={14} /> : <Glyph.play width={14} height={14} style={{ marginLeft: 1 }} />}
+      </button>
+      <span className="w-[7.2rem] shrink-0 text-[12.5px] font-medium tabular-nums">
+        {date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })}
+      </span>
+      <div className="relative w-56">
+        <StoryMarkers city={city} last={last} />
+        <input
+          type="range"
+          min={0}
+          max={last}
+          step={0.01}
+          value={t}
+          onChange={(e) => {
+            setPlaying(false)
+            setT(Number(e.target.value))
+          }}
+          className="scrub"
+          style={{ ['--p' as string]: `${pct}%` }}
+          aria-label="timeline"
+        />
+        <div className="text-ivory/35 pointer-events-none absolute inset-x-0 -bottom-1.5 h-3 font-mono text-[9.5px]">
+          {years.map((y) => (
+            <span key={y.year} className="absolute -translate-x-1/2" style={{ left: `${(y.k / last) * 100}%` }}>
+              {y.year}
+            </span>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
 
+/** Speed, go-to-now and export: lives in the "more" popover. */
+export function PlaybackExtras({ city }: { city: City }) {
+  const t = useStore((s) => s.t)
+  const speed = useStore((s) => s.speed)
+  const setSpeed = useStore((s) => s.setSpeed)
+  const goLive = useStore((s) => s.goLive)
+  const [recording, setRecording] = useState<number | null>(null)
+  const last = Math.max(0, city.timeline.keyframes.length - 1)
+  const live = t >= last
   const exportVideo = async () => {
     if (recording != null) return
     setRecording(0)
@@ -77,100 +119,30 @@ export function Timeline({ city }: { city: City }) {
       setRecording(null)
     }
   }
-
-  const author = cur ? city.authors[cur.author] : undefined
-  const pct = last ? (t / last) * 100 : 100
-
   return (
-    <div className="rise pointer-events-none absolute inset-x-0 bottom-4 flex flex-col items-center gap-2 px-4" style={{ animationDelay: '0.2s' }}>
-      <StoryCaption city={city} />
-      <div className="glass pointer-events-auto w-[48rem] max-w-full px-4 pt-3 pb-2.5">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setPlaying(!playing)}
-            className="bg-amber text-bg flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform duration-200 hover:scale-105 active:scale-95"
-            aria-label={playing ? 'pause' : 'play'}
-            title="space"
-          >
-            {playing ? <Glyph.pause /> : <Glyph.play style={{ marginLeft: 1 }} />}
-          </button>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[14px] leading-none font-medium tracking-[-0.01em] whitespace-nowrap tabular-nums">
-                {date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}
-              </span>
-              <span className="text-ivory/50 min-w-0 truncate font-mono text-[11px]">
-                {cur && (
-                  <>
-                    <span className="text-ivory/70">{cur.hash.slice(0, 7)}</span> {cur.subject}
-                    {author && <span className="text-ivory/35"> · {author.login ? `@${author.login}` : author.name}</span>}
-                  </>
-                )}
-              </span>
-            </div>
-            <div className="relative mt-1.5">
-              <StoryMarkers city={city} last={last} />
-              <input
-                type="range"
-                min={0}
-                max={last}
-                step={0.01}
-                value={t}
-                onChange={(e) => {
-                  setPlaying(false)
-                  setT(Number(e.target.value))
-                }}
-                className="scrub"
-                style={{ ['--p' as string]: `${pct}%` }}
-                aria-label="timeline"
-              />
-              <div className="text-ivory/35 pointer-events-none relative h-3 font-mono text-[10px]">
-                {years.map((y) => (
-                  <span key={y.year} className="absolute -translate-x-1/2" style={{ left: `${(y.k / last) * 100}%` }}>
-                    {y.year}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 items-center gap-1 self-start pt-0.5">
-            <select
-              className="text-ivory/60 hover:text-ivory h-8 cursor-pointer bg-transparent px-1 font-mono text-[11.5px] outline-none"
-              value={speed}
-              onChange={(e) => setSpeed(Number(e.target.value))}
-              title="playback speed"
-            >
-              {SPEEDS.map((s) => (
-                <option key={s} value={s}>
-                  {s === 12 ? '1×' : `${(s / 12).toFixed(s < 12 ? 1 : 0).replace('.0', '')}×`}
-                </option>
-              ))}
-            </select>
-            <button onClick={goLive} className={`btn h-8 rounded-full px-3 font-mono text-[11.5px] ${live ? 'text-amber' : ''}`} title="jump to HEAD">
-              <span className={`inline-block h-1.5 w-1.5 rounded-full ${live ? 'bg-amber' : 'bg-ivory/40'}`} />
-              {live ? 'now' : 'to now'}
-            </button>
-            <button
-              onClick={() => void exportVideo()}
-              disabled={recording != null}
-              className="btn h-8 rounded-full px-3 font-mono text-[11.5px] disabled:opacity-80"
-              title="play from the start and download a video of it"
-            >
-              <Glyph.record className={recording != null ? 'text-fire' : ''} />
-              {recording == null ? 'export' : `${Math.round(recording * 100)}%`}
-            </button>
-          </div>
-        </div>
-      </div>
+    <div className="text-ivory/70 flex items-center justify-between gap-3 font-mono text-[11.5px]">
+      <label className="flex items-center gap-1.5">
+        speed
+        <select className="text-ivory bg-transparent outline-none" value={speed} onChange={(e) => setSpeed(Number(e.target.value))}>
+          {SPEEDS.map((s) => (
+            <option key={s} value={s}>
+              {s === 12 ? '1×' : `${(s / 12).toFixed(s < 12 ? 1 : 0).replace('.0', '')}×`}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button onClick={goLive} className={`btn h-7 rounded-full px-2.5 ${live ? 'text-amber' : ''}`}>
+        <span className={`inline-block h-1.5 w-1.5 rounded-full ${live ? 'bg-amber' : 'bg-ivory/40'}`} /> {live ? 'now' : 'to now'}
+      </button>
+      <button onClick={() => void exportVideo()} disabled={recording != null} className="btn h-7 rounded-full px-2.5">
+        <Glyph.record className={recording != null ? 'text-fire' : ''} width={13} height={13} /> {recording == null ? 'export video' : `${Math.round(recording * 100)}%`}
+      </button>
     </div>
   )
 }
 
 const KIND_WORD: Record<string, string> = { rewrite: 'rewrite', demolition: 'demolition', burst: 'burst', district: 'new district', person: 'people' }
 
-/** Small marks above the track, one per detected moment; click to jump there. */
 function StoryMarkers({ city, last }: { city: City; last: number }) {
   const setT = useStore((s) => s.setT)
   const setPlaying = useStore((s) => s.setPlaying)
@@ -179,7 +151,7 @@ function StoryMarkers({ city, last }: { city: City; last: number }) {
   const story = city.timeline.story ?? []
   if (story.length === 0) return null
   return (
-    <div className="pointer-events-none absolute inset-x-0 -top-2 h-3">
+    <div className="pointer-events-none absolute inset-x-0 -top-1.5 h-3">
       {story.map((e, i) => (
         <button
           key={i}
@@ -188,7 +160,7 @@ function StoryMarkers({ city, last }: { city: City; last: number }) {
             setT(e.k)
             setPinned(pinned === i ? null : i)
           }}
-          className={`pointer-events-auto absolute top-0 h-2 w-2 -translate-x-1/2 rotate-45 rounded-[1px] transition-transform hover:scale-150 ${
+          className={`pointer-events-auto absolute top-0 h-1.5 w-1.5 -translate-x-1/2 rotate-45 rounded-[1px] transition-transform hover:scale-150 ${
             e.kind === 'demolition' ? 'bg-fire/80' : e.kind === 'person' ? 'bg-ivory/60' : 'bg-amber/90'
           } ${pinned === i ? 'scale-150' : ''}`}
           style={{ left: `${(e.k / Math.max(1, last)) * 100}%` }}
@@ -201,14 +173,13 @@ function StoryMarkers({ city, last }: { city: City; last: number }) {
 }
 
 /** A caption for the moment the scrubber is on (or the one pinned by a click). */
-function StoryCaption({ city }: { city: City }) {
+export function StoryCaption({ city }: { city: City }) {
   const t = useStore((s) => s.t)
   const pinned = useStore((s) => s.pinnedEvent)
   const setPinned = useStore((s) => s.setPinnedEvent)
   const story = city.timeline.story ?? []
   let idx = pinned
   if (idx == null) {
-    // Nearest event within half a keyframe of the scrubber.
     let best = -1
     let bestD = 0.75
     story.forEach((e, i) => {
@@ -225,7 +196,7 @@ function StoryCaption({ city }: { city: City }) {
   const kf = city.timeline.keyframes[e.k]
   const when = kf ? new Date(kf.time * 1000).toLocaleDateString(undefined, { year: 'numeric', month: 'long' }) : ''
   return (
-    <div key={idx} className="glass rise pointer-events-auto flex max-w-[48rem] items-start gap-3 px-4 py-2.5" style={{ animationDuration: '0.4s' }}>
+    <div key={idx} className="glass rise pointer-events-auto absolute bottom-20 left-1/2 flex max-w-[36rem] -translate-x-1/2 items-start gap-3 px-4 py-2.5" style={{ animationDuration: '0.4s' }}>
       <span className={`mt-1.5 inline-block h-2 w-2 shrink-0 rotate-45 rounded-[1px] ${e.kind === 'demolition' ? 'bg-fire/80' : e.kind === 'person' ? 'bg-ivory/60' : 'bg-amber/90'}`} />
       <div className="min-w-0">
         <div className="text-ivory/45 font-mono text-[10.5px] tracking-wide uppercase">
@@ -243,11 +214,6 @@ function StoryCaption({ city }: { city: City }) {
   )
 }
 
-/**
- * The first keyframe of each year, for tick labels under the slider.
- * Keyframes are spaced by commit, not time, so quiet years bunch up; labels
- * closer than 7% of the track to the previous one are dropped.
- */
 function yearTicks(city: City) {
   const kf = city.timeline.keyframes
   const last = Math.max(1, kf.length - 1)
@@ -259,7 +225,7 @@ function yearTicks(city: City) {
     if (y === lastYear) return
     lastYear = y
     const pos = k / last
-    if (pos - lastPos < 0.07) return
+    if (pos - lastPos < 0.14) return
     out.push({ year: y, k })
     lastPos = pos
   })

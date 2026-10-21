@@ -4,12 +4,12 @@ import { MODES, FIRE, ownerPalette, type ColorMode } from '../city/colors'
 import { formatISO, formatNum, githubFileUrl } from '../city/scales'
 import type { City } from '../city/types'
 import { createShare } from '../city/api'
-import { Timeline } from './Timeline'
+import { PlaybackExtras, Scrub, StoryCaption } from './Timeline'
 import { Tour, shouldShowTour } from './Tour'
 import { Glyph, MODE_GLYPH } from './glyphs'
 import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from '../scene/Coupling'
-import { Insights } from './Insights'
+import { InsightStrip } from './Insights'
 
 export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const walking = useStore((s) => s.walking)
@@ -28,7 +28,6 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
-  // First visit: the guided tour, after the fly-in has settled.
   useEffect(() => {
     if (!shouldShowTour() || new URLSearchParams(location.search).get('tour') === '0') return
     const t = setTimeout(() => setTourStep(0), 1800)
@@ -38,151 +37,155 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
   if (walking) return <WalkHud city={city} />
   return (
     <div className="text-ivory">
-      <TopBar city={city} onOpenFile={onOpenFile} onHome={onHome} />
-      <Lens city={city} />
+      <Corner city={city} onHome={onHome} />
+      <InsightStrip city={city} />
       <Tooltip city={city} />
       <SelectedTag city={city} />
-      <Insights city={city} />
-      <Inspector city={city} />
+      <InspectorCard city={city} />
+      <LegendChip city={city} />
+      <StoryCaption city={city} />
+      <Dock city={city} onOpenFile={onOpenFile} />
       <Search city={city} />
-      <Timeline city={city} />
       <Tour city={city} />
     </div>
   )
 }
 
-function TopBar({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
-  const setWalking = useStore((s) => s.setWalking)
-  const setTourStep = useStore((s) => s.setTourStep)
+/** Top-left: wordmark and repo, as text over the city, no box. */
+function Corner({ city, onHome }: { city: City; onHome: () => void }) {
+  const [owner, ...rest] = city.repo.name.split('/')
   return (
-    <div className="rise pointer-events-none absolute inset-x-0 top-0 flex items-center gap-3 p-4">
-      <div className="glass glass-pill pointer-events-auto flex h-10 items-center pr-4 pl-4">
-        <button className="text-[15px] leading-none font-semibold tracking-[-0.03em] hover:opacity-80" onClick={onHome} title="home">
+    <div className="rise pointer-events-none absolute top-5 left-6 drop-shadow-[0_1px_8px_rgba(0,0,0,0.8)]">
+      <div className="flex items-baseline gap-3">
+        <button className="pointer-events-auto text-[15px] font-semibold tracking-[-0.03em] hover:opacity-80" onClick={onHome}>
           Code<span className="text-amber">Skyline</span>
         </button>
-        <span className="hairline mx-3 h-4 border-l" />
-        <span className="font-mono text-[12.5px]">
-          <span className="text-ivory/50">{city.repo.name.split('/')[0]}/</span>
-          {city.repo.name.split('/').slice(1).join('/') || city.repo.name}
+        <span className="pointer-events-auto font-mono text-[12.5px]">
+          <span className="text-ivory/45">{owner}/</span>
+          {rest.join('/') || city.repo.name}
+          {city.repo.url && (
+            <a className="text-ivory/40 hover:text-ivory ml-1.5 inline-block align-middle transition" href={city.repo.url} target="_blank" rel="noreferrer" title="open on GitHub">
+              <Glyph.external width={11} height={11} />
+            </a>
+          )}
         </span>
-        {city.repo.url && (
-          <a className="text-ivory/40 hover:text-ivory ml-2 transition" href={city.repo.url} target="_blank" rel="noreferrer" title="open on GitHub">
-            <Glyph.external width={12} height={12} />
-          </a>
-        )}
       </div>
-
-      <div className="text-ivory/55 pointer-events-auto hidden items-center gap-4 font-mono text-[11.5px] md:flex">
-        <Stat v={formatNum(city.stats.files)} l="files" />
-        <Stat v={formatNum(city.stats.lines)} l="lines" />
-        <Stat v={formatNum(city.repo.commits)} l="commits" />
-        <Stat v={String(city.authors.length)} l="authors" />
-        {city.stats.burning > 0 && (
-          <span className="text-fire/90 flex items-center gap-1">
-            <Glyph.hotspots width={12} height={12} /> {city.stats.burning} on fire
-          </span>
-        )}
-      </div>
-
-      <div className="glass glass-pill pointer-events-auto ml-auto flex h-10 items-center p-1">
-        <button className="btn rounded-full" onClick={() => setWalking(true)} title="first-person walk · WASD, Esc to leave">
-          <Glyph.walk /> Walk
-        </button>
-        <span className="hairline h-4 border-l" />
-        <ShareButton city={city} />
-        <span className="hairline h-4 border-l" />
-        <button className="btn rounded-full" onClick={onOpenFile} title="open a .city.json">
-          <Glyph.open />
-        </button>
-        <button className="btn rounded-full" onClick={() => setTourStep(0)} title="replay the tour">
-          <Glyph.help />
-        </button>
+      <div className="text-ivory/40 mt-1 font-mono text-[11px]">
+        {formatNum(city.stats.files)} files · {formatNum(city.stats.lines)} lines · {formatNum(city.repo.commits)} commits · {city.authors.length} authors
+        {city.stats.burning > 0 && <span className="text-fire/80"> · {city.stats.burning} on fire</span>}
       </div>
     </div>
   )
 }
 
-function Stat({ v, l }: { v: string; l: string }) {
+/** The dock: everything you can do, in one pill at the bottom. */
+function Dock({ city, onOpenFile }: { city: City; onOpenFile: () => void }) {
+  const mode = useStore((s) => s.mode)
+  const setMode = useStore((s) => s.setMode)
+  const setWalking = useStore((s) => s.setWalking)
+  const setTourStep = useStore((s) => s.setTourStep)
+  const panel = useStore((s) => s.dockPanel)
+  const setPanel = useStore((s) => s.setDockPanel)
+  const [hint, setHint] = useState<ColorMode | null>(null)
+  const modes = MODES.filter((m) => m.id !== 'diff' || city.diff)
+  const hintMode = modes.find((m) => m.id === (hint ?? mode))
+
   return (
-    <span>
-      <span className="text-ivory/85">{v}</span> {l}
-    </span>
+    <div className="rise pointer-events-none absolute inset-x-0 bottom-4 flex flex-col items-center gap-2" style={{ animationDelay: '0.2s' }}>
+      {/* What the lens under the cursor means. */}
+      <div className="text-ivory/55 h-4 font-mono text-[11px] transition-opacity" style={{ opacity: hint ? 1 : 0 }}>
+        {hintMode ? `${hintMode.label}: ${hintMode.hint}` : ''}
+      </div>
+      <div className="glass glass-pill pointer-events-auto flex h-12 items-center gap-1 pr-1.5 pl-2">
+        <Scrub city={city} />
+        <span className="hairline mx-1.5 h-5 border-l" />
+        <div className="flex items-center gap-0.5" onMouseLeave={() => setHint(null)}>
+          {modes.map((m) => {
+            const G = MODE_GLYPH[m.id]
+            const active = mode === m.id
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                onMouseEnter={() => setHint(m.id)}
+                className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 ${active ? 'bg-amber/15 text-amber' : 'text-ivory/60 hover:bg-ivory/[0.07] hover:text-ivory hover:scale-110'}`}
+                aria-label={m.label}
+                title={m.label}
+              >
+                <G />
+              </button>
+            )
+          })}
+        </div>
+        <span className="hairline mx-1.5 h-5 border-l" />
+        <DockButton onClick={() => window.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))} label="Find a file (⌘K)">
+          <Glyph.search />
+        </DockButton>
+        <DockButton onClick={() => setWalking(true)} label="Walk the streets">
+          <Glyph.walk />
+        </DockButton>
+        <ShareButton city={city} />
+        <DockButton onClick={() => setPanel(panel === 'more' ? null : 'more')} label="More" active={panel === 'more'}>
+          <span className="text-[15px] leading-none tracking-[0.1em]">⋯</span>
+        </DockButton>
+      </div>
+      {panel === 'more' && (
+        <div className="glass rise pointer-events-auto absolute right-[calc(50%-24rem)] bottom-16 w-[20rem] p-3 text-[12px]" style={{ animationDuration: '0.25s' }}>
+          <PlaybackExtras city={city} />
+          <div className="hairline my-3 border-t" />
+          <Settings city={city} />
+          <div className="hairline my-3 border-t" />
+          <div className="flex items-center justify-between font-mono text-[11.5px]">
+            <button className="btn h-7 rounded-full px-2.5" onClick={onOpenFile}>
+              <Glyph.open width={13} height={13} /> open a .city.json
+            </button>
+            <button className="btn h-7 rounded-full px-2.5" onClick={() => setTourStep(0)}>
+              <Glyph.help width={13} height={13} /> tour
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   )
 }
 
-/** Left panel: pick how the city is colored, with the legend for the active lens. */
-function Lens({ city }: { city: City }) {
-  const mode = useStore((s) => s.mode)
-  const setMode = useStore((s) => s.setMode)
-  const open = useStore((s) => s.lensOpen)
-  const setOpen = useStore((s) => s.setLensOpen)
+function DockButton({ children, onClick, label, active }: { children: React.ReactNode; onClick: () => void; label: string; active?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-9 w-9 items-center justify-center rounded-full transition-all duration-200 ${active ? 'bg-ivory/[0.1] text-ivory' : 'text-ivory/60 hover:bg-ivory/[0.07] hover:text-ivory hover:scale-110'}`}
+      aria-label={label}
+      title={label}
+    >
+      {children}
+    </button>
+  )
+}
+
+function Settings({ city }: { city: City }) {
   const heightScale = useStore((s) => s.heightScale)
   const setHeightScale = useStore((s) => s.setHeightScale)
   const hideGenerated = useStore((s) => s.hideGenerated)
   const toggleGenerated = useStore((s) => s.toggleGenerated)
   const showCoupling = useStore((s) => s.showCoupling)
   const setShowCoupling = useStore((s) => s.setShowCoupling)
-
-  if (!open) {
-    const G = MODE_GLYPH[mode]
-    return (
-      <button onClick={() => setOpen(true)} className="glass btn rise pointer-events-auto absolute top-[68px] left-4 h-10 rounded-full pr-4">
-        <G /> <span className="label">lens</span>
-      </button>
-    )
-  }
   return (
-    <div className="glass rise pointer-events-auto absolute top-[68px] left-4 max-h-[calc(100vh-14rem)] w-[17rem] overflow-x-hidden overflow-y-auto" style={{ animationDelay: '0.1s' }}>
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <span className="label">Lens</span>
-        <button className="text-ivory/40 hover:text-ivory transition" onClick={() => setOpen(false)} aria-label="collapse">
-          <Glyph.chevron width={12} height={12} style={{ transform: 'rotate(180deg)' }} />
-        </button>
-      </div>
-      <ul className="px-2 pb-2">
-        {MODES.filter((m) => m.id !== 'diff' || city.diff).map((m) => {
-          const G = MODE_GLYPH[m.id]
-          const active = mode === m.id
-          return (
-            <li key={m.id}>
-              <button
-                onClick={() => setMode(m.id)}
-                className={`relative flex w-full items-start gap-3 rounded-[10px] px-3 py-2 text-left transition-colors duration-200 ${active ? 'bg-ivory/[0.07]' : 'hover:bg-ivory/[0.04]'}`}
-              >
-                <span className={`mt-0.5 transition-colors ${active ? 'text-amber' : 'text-ivory/50'}`}>
-                  <G />
-                </span>
-                <span className="min-w-0">
-                  <span className={`block text-[13px] leading-5 ${active ? 'text-ivory' : 'text-ivory/85'}`}>{m.label}</span>
-                  <span className="text-ivory/45 block text-[11.5px] leading-4">{m.hint}</span>
-                </span>
-                {active && <span className="bg-amber absolute top-2.5 bottom-2.5 left-0 w-[2px] rounded-full" />}
-              </button>
-            </li>
-          )
-        })}
-      </ul>
-      <div className="hairline border-t px-4 py-3">
-        <Legend city={city} mode={mode} />
-      </div>
-      <div className="hairline text-ivory/50 flex items-center justify-between border-t px-4 py-2.5 font-mono text-[11px]">
-        <label className="flex items-center gap-1.5">
-          height
-          <select className="text-ivory/85 bg-transparent outline-none" value={heightScale} onChange={(e) => setHeightScale(e.target.value as never)}>
-            <option value="sqrt">√ lines</option>
-            <option value="log">log lines</option>
-            <option value="linear">lines</option>
-          </select>
-        </label>
-        <label className="flex cursor-pointer items-center gap-1.5" title="lockfiles, vendored and generated code">
-          <input type="checkbox" className="accent-amber" checked={hideGenerated} onChange={toggleGenerated} /> hide generated
-        </label>
-      </div>
+    <div className="text-ivory/70 space-y-2 font-mono text-[11.5px]">
+      <label className="flex items-center justify-between">
+        building height
+        <select className="text-ivory bg-transparent outline-none" value={heightScale} onChange={(e) => setHeightScale(e.target.value as never)}>
+          <option value="sqrt">√ lines</option>
+          <option value="log">log lines</option>
+          <option value="linear">lines</option>
+        </select>
+      </label>
+      <label className="flex cursor-pointer items-center justify-between" title="lockfiles, vendored and generated code">
+        hide generated code
+        <input type="checkbox" className="accent-amber" checked={hideGenerated} onChange={toggleGenerated} />
+      </label>
       {city.couplings.length > 0 && (
-        <label className="hairline text-ivory/50 flex cursor-pointer items-center justify-between border-t px-4 py-2.5 font-mono text-[11px]" title="hover or select a building to see the files that change with it">
-          <span>
-            bridges on hover <span className="text-ivory/30">· {city.couplings.length} pairs</span>
-          </span>
+        <label className="flex cursor-pointer items-center justify-between" title="hover or select a building to see files that change with it">
+          bridges on hover <span className="text-ivory/35">· {city.couplings.length} pairs</span>
           <input type="checkbox" className="accent-amber" checked={showCoupling} onChange={(e) => setShowCoupling(e.target.checked)} />
         </label>
       )}
@@ -190,64 +193,87 @@ function Lens({ city }: { city: City }) {
   )
 }
 
-function Legend({ city, mode }: { city: City; mode: ColorMode }) {
+/** A slim legend above the dock, only when the lens has one. */
+function LegendChip({ city }: { city: City }) {
+  const mode = useStore((s) => s.mode)
   const top = useMemo(() => [...city.authors].map((a, i) => ({ ...a, i })).sort((a, b) => b.commits - a.commits).slice(0, 8), [city])
-  const langs = useMemo(() => Object.entries(city.stats.languages).sort((a, b) => b[1] - a[1]).slice(0, 8), [city])
+  const langs = useMemo(() => Object.entries(city.stats.languages).sort((a, b) => b[1] - a[1]).slice(0, 7), [city])
+  let body: React.ReactNode = null
   switch (mode) {
     case 'churn':
-      return <Bar from="few commits" to="many" css="linear-gradient(90deg,#2f4a7a,#2d8fa8,#8fd36b,#f5d442,#f28b2b,#e8382b)" />
+      body = <Bar from="few commits" to="many" css="linear-gradient(90deg,#2f4a7a,#2d8fa8,#8fd36b,#f5d442,#f28b2b,#e8382b)" />
+      break
     case 'activity':
-      return <Bar from="quiet" to="being worked on" css="linear-gradient(90deg,#1f2a44,#2b4c7e,#3f8fd2,#8fe3ff,#ffffff)" />
+      body = <Bar from="quiet" to="being worked on" css="linear-gradient(90deg,#1f2a44,#2b4c7e,#3f8fd2,#8fe3ff,#ffffff)" />
+      break
     case 'age':
-      return <Bar from="new" to="old" css="linear-gradient(90deg,#f8f1a6,#8ad5c9,#4a7aa8,#2b3659)" />
+      body = <Bar from="new" to="old" css="linear-gradient(90deg,#f8f1a6,#8ad5c9,#4a7aa8,#2b3659)" />
+      break
     case 'hotspots':
-      return (
-        <div className="text-ivory/60 flex flex-wrap gap-x-3 gap-y-1 font-mono text-[11px]">
+      body = (
+        <div className="flex items-center gap-3">
           {['calm', 'smoke', 'flames', 'inferno'].map((l, i) => (
             <span key={l} className="flex items-center gap-1.5">
-              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: rgb(FIRE[i]!) }} /> {l}
+              <i className="inline-block h-2 w-2 rounded-[2px]" style={{ background: rgb(FIRE[i]!) }} /> {l}
             </span>
           ))}
         </div>
       )
+      break
     case 'language':
-      return (
-        <div className="text-ivory/60 grid grid-cols-2 gap-x-3 gap-y-1 font-mono text-[11px]">
+      body = (
+        <div className="flex items-center gap-3">
           {langs.map(([l, n]) => (
-            <span key={l} className="truncate">
+            <span key={l} className="whitespace-nowrap">
               {l} <span className="text-ivory/35">{formatNum(n)}</span>
             </span>
           ))}
         </div>
       )
-    case 'owners':
-      return <OwnersLegend city={city} top={top} />
+      break
     case 'diff':
-      return (
-        <div className="text-ivory/60 font-mono text-[11px]">
-          <div className="flex flex-wrap gap-x-3 gap-y-1">
-            <span className="flex items-center gap-1.5">
-              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#5fd38d' }} /> added
-            </span>
-            <span className="flex items-center gap-1.5">
-              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#b89a5e' }} /> modified
-            </span>
-            <span className="flex items-center gap-1.5">
-              <i className="inline-block h-2.5 w-2.5 rounded-[3px]" style={{ background: '#ff5c5c' }} /> deleted
-            </span>
-          </div>
+      body = (
+        <div className="flex items-center gap-3">
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block h-2 w-2 rounded-[2px]" style={{ background: '#5fd38d' }} /> added
+          </span>
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block h-2 w-2 rounded-[2px]" style={{ background: '#b89a5e' }} /> modified
+          </span>
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block h-2 w-2 rounded-[2px]" style={{ background: '#ff5c5c' }} /> deleted
+          </span>
           {city.diff && (
-            <div className="text-ivory/40 mt-1.5">
+            <span className="text-ivory/40">
               {city.diff.files.length} files · {city.diff.base.slice(0, 7)} → {city.diff.head.slice(0, 7)}
-            </div>
+            </span>
           )}
         </div>
       )
+      break
+    case 'owners':
+      return <OwnersChip city={city} top={top} />
   }
+  if (!body) return null
+  return (
+    <div key={mode} className="glass rise text-ivory/60 pointer-events-auto absolute bottom-[4.9rem] left-1/2 -translate-x-1/2 px-4 py-2 font-mono text-[11px]" style={{ animationDuration: '0.3s' }}>
+      {body}
+    </div>
+  )
+}
+
+function Bar({ from, to, css }: { from: string; to: string; css: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span>{from}</span>
+      <i className="inline-block h-1.5 w-40 rounded-full" style={{ background: css }} />
+      <span>{to}</span>
+    </div>
+  )
 }
 
 /** Owners legend with the departure simulation: click a person, see what goes dark. */
-function OwnersLegend({ city, top }: { city: City; top: { i: number; name: string; login?: string }[] }) {
+function OwnersChip({ city, top }: { city: City; top: { i: number; name: string; login?: string }[] }) {
   const sim = useStore((s) => s.simulateAuthor)
   const setSim = useStore((s) => s.setSimulateAuthor)
   const impact = useMemo(() => (sim == null ? null : simulateDeparture(city, sim)), [city, sim])
@@ -256,62 +282,43 @@ function OwnersLegend({ city, top }: { city: City; top: { i: number; name: strin
     return a ? (a.login ? `@${a.login}` : a.name) : ''
   }
   return (
-    <div className="text-[11.5px]">
-      <div className="text-ivory/70 grid grid-cols-2 gap-x-3 gap-y-1">
+    <div className="glass rise pointer-events-auto absolute bottom-[4.9rem] left-1/2 max-w-[min(56rem,calc(100vw-2rem))] -translate-x-1/2 px-3 py-2 text-[11.5px]" style={{ animationDuration: '0.3s' }} title="click a person to simulate them leaving">
+      <div className="flex items-center gap-1 overflow-x-auto [scrollbar-width:none]">
         {top.map((a) => (
           <button
             key={a.i}
             onClick={() => setSim(sim === a.i ? null : a.i)}
-            className={`flex items-center gap-1.5 truncate rounded px-1 -mx-1 text-left transition ${sim === a.i ? 'bg-ivory/[0.08] text-ivory' : 'hover:bg-ivory/[0.05]'}`}
+            className={`flex items-center gap-1.5 rounded-full px-2 py-1 whitespace-nowrap transition ${sim === a.i ? 'bg-ivory/[0.1] text-ivory' : 'text-ivory/70 hover:bg-ivory/[0.06] hover:text-ivory'}`}
             title="simulate this person leaving"
           >
-            <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: ownerCss(a.i, city) }} />
-            <span className="truncate">{a.login ? `@${a.login}` : a.name}</span>
+            <i className="inline-block h-2 w-2 shrink-0 rounded-[2px]" style={{ background: ownerCss(a.i, city) }} />
+            {a.login ? `@${a.login}` : a.name.split(' ')[0]}
           </button>
         ))}
-        <span className="flex items-center gap-1.5 truncate px-1 -mx-1">
-          <i className="inline-block h-2.5 w-2.5 shrink-0 rounded-[3px]" style={{ background: '#1c1f2b', border: '1px solid #3a4256' }} />
-          <span className="text-ivory/45 truncate">ghost town</span>
+        <span className="text-ivory/40 ml-2 flex items-center gap-1.5 px-1 whitespace-nowrap">
+          <i className="inline-block h-2 w-2 rounded-[2px]" style={{ background: '#1c1f2b', border: '1px solid #3a4256' }} /> ghost town
         </span>
       </div>
-      {impact ? (
-        <div className="hairline mt-3 border-t pt-3">
-          <div className="label mb-1.5">if {name(impact.author)} left</div>
-          <div className="text-[13px]">
-            <span className="text-fire font-medium">{impact.lost.size}</span>{' '}
-            <span className="text-ivory/60">
-              of {impact.total} files ({impact.total ? Math.round((impact.lost.size / impact.total) * 100) : 0}%) would have no active owner
+      {!impact && <div className="text-ivory/35 mt-1 px-2 font-mono text-[10.5px]">click a person to simulate them leaving</div>}
+      {impact && (
+        <div className="hairline mt-2 flex items-center gap-4 border-t pt-2">
+          <span className="font-mono text-[11px]">
+            <span className="label">if {name(impact.author)} left</span>
+          </span>
+          <span>
+            <span className="text-fire font-medium">{impact.lost.size}</span>
+            <span className="text-ivory/60"> of {impact.total} files ({impact.total ? Math.round((impact.lost.size / impact.total) * 100) : 0}%) lose their last active owner</span>
+          </span>
+          {impact.districts.slice(0, 3).map((d) => (
+            <span key={d.path} className="text-ivory/50 font-mono text-[11px] whitespace-nowrap">
+              {d.path} <span className="text-fire/80">{d.lost}/{d.files}</span>
             </span>
-          </div>
-          {impact.districts.length > 0 && (
-            <ul className="text-ivory/60 mt-2 space-y-0.5 font-mono text-[11px]">
-              {impact.districts.map((d) => (
-                <li key={d.path} className="flex justify-between gap-2">
-                  <span className="truncate">{d.path}</span>
-                  <span className="text-fire/80 shrink-0">
-                    {d.lost}/{d.files}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button onClick={() => setSim(null)} className="text-ivory/45 hover:text-ivory mt-2 font-mono text-[11px] transition">
-            clear simulation
+          ))}
+          <button onClick={() => setSim(null)} className="text-ivory/45 hover:text-ivory ml-auto font-mono text-[11px] transition">
+            clear
           </button>
         </div>
-      ) : (
-        <div className="text-ivory/35 mt-2 font-mono text-[10.5px]">click a person to simulate them leaving</div>
       )}
-    </div>
-  )
-}
-
-function Bar({ from, to, css }: { from: string; to: string; css: string }) {
-  return (
-    <div className="text-ivory/50 flex items-center gap-2 font-mono text-[11px]">
-      <span>{from}</span>
-      <i className="inline-block h-1.5 flex-1 rounded-full" style={{ background: css }} />
-      <span>{to}</span>
     </div>
   )
 }
@@ -346,12 +353,10 @@ function SelectedTag({ city }: { city: City }) {
   const f = city.files[selected]
   if (!f) return null
   const name = f.path.slice(f.path.lastIndexOf('/') + 1)
-  const dir = f.path.slice(0, f.path.lastIndexOf('/'))
   return (
     <div className="pointer-events-none absolute z-10 flex -translate-x-1/2 -translate-y-full flex-col items-center" style={{ left: m.x, top: m.y }}>
-      <div className="glass border-amber/60 px-3 py-1.5 text-center whitespace-nowrap">
-        <div className="font-mono text-[12.5px]">{name}</div>
-        {dir && <div className="text-ivory/45 font-mono text-[10px]">{dir}/</div>}
+      <div className="glass border-amber/60 px-2.5 py-1 whitespace-nowrap">
+        <div className="font-mono text-[12px]">{name}</div>
       </div>
       <span className="bg-amber mt-1 h-3 w-[1.5px]" />
     </div>
@@ -390,15 +395,18 @@ function ShareButton({ city }: { city: City }) {
     setTimeout(() => setState('idle'), 1800)
   }
   return (
-    <button onClick={() => void share()} className="btn rounded-full" title="copy a link to this view">
-      <Glyph.share /> {state === 'copied' ? <span className="text-amber">copied</span> : state === 'failed' ? 'copy failed' : 'Share'}
-    </button>
+    <DockButton onClick={() => void share()} label={state === 'copied' ? 'Link copied' : state === 'failed' ? 'Copy failed' : 'Share this view'} active={state === 'copied'}>
+      {state === 'copied' ? <span className="text-amber text-[11px]">✓</span> : <Glyph.share />}
+    </DockButton>
   )
 }
 
-function Inspector({ city }: { city: City }) {
+/** The inspector, anchored beside the selected building. */
+function InspectorCard({ city }: { city: City }) {
   const selected = useStore((s) => s.selected)
   const select = useStore((s) => s.select)
+  const m = useStore((s) => s.markerScreen)
+  const ref = useRef<HTMLDivElement>(null)
   if (selected == null) return null
   const f = city.files[selected]
   if (!f) return null
@@ -406,8 +414,16 @@ function Inspector({ city }: { city: City }) {
   const d = city.dirs[f.dir]
   const name = f.path.slice(f.path.lastIndexOf('/') + 1)
   const dir = f.path.slice(0, f.path.lastIndexOf('/'))
+  const W = 300
+  // Beside the tag when it is on screen, otherwise top-right.
+  const vw = typeof window === 'undefined' ? 1440 : window.innerWidth
+  const vh = typeof window === 'undefined' ? 900 : window.innerHeight
+  const flip = m.x + 40 + W > vw - 16
+  const style: React.CSSProperties = m.visible
+    ? { left: flip ? Math.max(16, m.x - 40 - W) : m.x + 40, top: Math.min(Math.max(16, m.y - 120), vh - 420), width: W }
+    : { right: 16, top: 64, width: W }
   return (
-    <div key={selected} className="glass rise pointer-events-auto absolute top-[68px] right-4 w-[20rem] overflow-hidden text-[12.5px]">
+    <div ref={ref} key={selected} className="glass rise pointer-events-auto absolute z-10 max-h-[calc(100vh-10rem)] overflow-y-auto text-[12.5px]" style={{ ...style, animationDuration: '0.3s' }}>
       <div className="flex items-start justify-between gap-3 px-4 pt-3.5 pb-3">
         <div className="min-w-0">
           {dir && <div className="text-ivory/45 truncate font-mono text-[11px]">{dir}/</div>}
@@ -426,7 +442,7 @@ function Inspector({ city }: { city: City }) {
         <Cell label="lines" value={formatNum(f.lines)} />
         <Cell label="commits" value={formatNum(f.commits)} />
         <Cell label="complexity" value={formatNum(f.complexity)} />
-        <Cell label="bug fixes" value={formatNum(f.bugFixes)} top />
+        <Cell label="fixes" value={formatNum(f.bugFixes)} top />
         <Cell label="created" value={formatISO(f.created)} top />
         <Cell label="touched" value={formatISO(f.lastTouched)} top />
       </div>
@@ -482,12 +498,13 @@ function CoupledWith({ city, id }: { city: City; id: number }) {
   const partners = useMemo(() => partnersOf(city, id).slice(0, 6), [city, id])
   if (partners.length === 0) return null
   const top = partners[0]!
+  const topName = city.files[top.id]!.path.slice(city.files[top.id]!.path.lastIndexOf('/') + 1)
   return (
     <div className="hairline border-t px-4 py-3">
       <div className="label mb-1">changes together with</div>
       <p className="text-ivory/50 mb-2 text-[11.5px] leading-snug">
-        Edit this file and {Math.round(top.confidence * 100)}% of the time {city.files[top.id]!.path.slice(city.files[top.id]!.path.lastIndexOf('/') + 1)} changes in the
-        same commit. Nothing imports it; the history is the only thing that knows. Expect to touch these too.
+        Edit this file and {Math.round(top.confidence * 100)}% of the time {topName} changes in the same commit. Nothing imports it; the history is the only
+        thing that knows. Expect to touch these too.
       </p>
       <ul className="space-y-1">
         {partners.map((p) => {
@@ -578,15 +595,10 @@ function Search({ city }: { city: City }) {
     return out
   }, [q, city])
 
-  if (!open)
-    return (
-      <button onClick={() => setOpen(true)} className="glass btn rise pointer-events-auto absolute bottom-[7.5rem] left-4 h-10 rounded-full pr-3">
-        <Glyph.search /> find a file <kbd>⌘K</kbd>
-      </button>
-    )
+  if (!open) return null
   return (
     <div className="pointer-events-auto absolute inset-x-0 top-24 z-20 mx-auto w-[34rem] max-w-[90vw]">
-      <div className="glass rise overflow-hidden" style={{ animationDuration: '0.35s' }}>
+      <div className="glass rise overflow-hidden" style={{ animationDuration: '0.3s' }}>
         <div className="flex items-center gap-3 px-4">
           <Glyph.search className="text-ivory/50" />
           <input
