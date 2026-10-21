@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useMemo, useRef } from 'react'
-import type * as THREE from 'three'
+import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { CameraControls, MeshReflectorMaterial } from '@react-three/drei'
 import { Bloom, EffectComposer, N8AO, TiltShift2, Vignette } from '@react-three/postprocessing'
@@ -17,7 +17,8 @@ import { Flames } from './Flames'
 import { Labels } from './Labels'
 import { Lots } from './Lots'
 import { Marker } from './Marker'
-import { Sky } from './Sky'
+import { Sky, makeSkyMaterial } from './Sky'
+import { Streets } from './Streets'
 import { Traffic } from './Traffic'
 import { Walk } from './Walk'
 import { patchHeightFog } from './fog'
@@ -48,7 +49,10 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   // frame budget goes to the buildings.
   const n = city.files.length
   const wet = n <= 12000
-  const traffic = false && n <= 30000 // off until there are roads for the cars to be on
+  const traffic = n <= 30000
+  // The sun sits low on the horizon: long shadows, and the sky glows on its side.
+  const sun = useMemo(() => new THREE.Vector3(cx + size * 0.85, size * 0.22, cz - size * 0.5), [cx, cz, size])
+  const sunDir = useMemo(() => new THREE.Vector3(size * 0.85, size * 0.22, -size * 0.5).normalize(), [size])
 
   return (
     <Canvas
@@ -60,15 +64,16 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       onPointerMove={(e) => !hero && setPointer(e.clientX, e.clientY)}
       style={hero ? { pointerEvents: 'none' } : undefined}
     >
-      <color attach="background" args={['#0a0a0a']} />
-      <fog attach="fog" args={['#0d0d0d', size * 0.6, size * 4]} />
-      <Sky radius={size * 6} />
-      <hemisphereLight args={['#8d94a3', '#141414', 0.8]} />
+      <color attach="background" args={['#0e1120']} />
+      <fog attach="fog" args={['#1b1e2c', size * 0.6, size * 4]} />
+      <Sky radius={size * 6} sun={sunDir} />
+      <DuskEnvironment sun={sunDir} />
+      <hemisphereLight args={['#5d6f96', '#1c1b1f', 1.6]} />
       {/* A low sun: long shadows across the districts are most of the depth. */}
       <directionalLight
-        position={[cx + size * 0.85, size * 0.26, cz - size * 0.5]}
-        intensity={2.1}
-        color="#ffd8ae"
+        position={sun.toArray()}
+        intensity={3.2}
+        color="#ffc08a"
         castShadow
         shadow-mapSize={[3072, 3072]}
         shadow-camera-left={-size * 1.15}
@@ -84,11 +89,12 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
 
       <mesh rotation-x={-Math.PI / 2} position={[cx, -0.02, cz]} receiveShadow>
         <planeGeometry args={[size * 10, size * 10]} />
-        <meshStandardMaterial color="#121212" roughness={1} />
+        <meshStandardMaterial color="#14161c" roughness={1} />
       </mesh>
       <DepthTuning size={size} />
 
       <Districts city={city} />
+      <Streets city={city} />
       {wet && <WetStreets city={city} />}
       {traffic && <Traffic city={city} timeline={timeline} />}
       <Lots city={city} timeline={timeline} />
@@ -113,6 +119,32 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       </EffectComposer>
     </Canvas>
   )
+}
+
+/**
+ * The sky, baked into an environment map so glass and wet asphalt reflect
+ * the dusk. Built once per city size from the same shader as the dome.
+ */
+function DuskEnvironment({ sun }: { sun: THREE.Vector3 }) {
+  const gl = useThree((s) => s.gl)
+  const scene = useThree((s) => s.scene)
+  useEffect(() => {
+    const pmrem = new THREE.PMREMGenerator(gl)
+    const env = new THREE.Scene()
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), makeSkyMaterial(sun))
+    env.add(dome)
+    const tex = pmrem.fromScene(env, 0.04).texture
+    scene.environment = tex
+    scene.environmentIntensity = 1.1
+    pmrem.dispose()
+    dome.geometry.dispose()
+    ;(dome.material as THREE.Material).dispose()
+    return () => {
+      scene.environment = null
+      tex.dispose()
+    }
+  }, [gl, scene, sun])
+  return null
 }
 
 /**

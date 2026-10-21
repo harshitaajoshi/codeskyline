@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { useStore } from '../store'
 import { ACTIVITY, CHURN, FIRE, GHOST, GPU_MODE, GRAY, OWNER_SLOTS, fileColor, makeColorContext, paletteSlot, type RGB } from '../city/colors'
 import { height, type HeightScale } from '../city/scales'
@@ -9,9 +10,84 @@ import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from './Coupling'
 import type { City } from '../city/types'
 
-// Unit box with its origin at the base so scale.y is the building height.
-const BOX = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
 const LOT_MARGIN = 0.12 // gap between a building and its lot edge
+
+/** Tags every vertex of a geometry with the variant it belongs to. */
+function tagged(g: THREE.BufferGeometry, variant: number): THREE.BufferGeometry {
+  const n = g.getAttribute('position').count
+  g.setAttribute('variant', new THREE.Float32BufferAttribute(new Float32Array(n).fill(variant), 1))
+  return g
+}
+
+/**
+ * Building bodies: a few silhouettes inside one unit box (origin at the base,
+ * height 1), all merged into one geometry. Every instance carries its
+ * variant; the vertex shader collapses the other variants to a point, so
+ * one draw call still renders the whole city.
+ *   0 plain block
+ *   1 podium with a slimmer tower
+ *   2 stepped: three setbacks
+ *   3 slab tower with a thin top
+ */
+function bodyGeometry(): THREE.BufferGeometry {
+  const box = (w: number, h: number, d: number, y: number) => new THREE.BoxGeometry(w, h, d).translate(0, y + h / 2, 0)
+  const parts = [
+    tagged(box(1, 1, 1, 0), 0),
+    tagged(box(1, 0.22, 1, 0), 1),
+    tagged(box(0.72, 0.78, 0.72, 0.22), 1),
+    tagged(box(1, 0.4, 1, 0), 2),
+    tagged(box(0.84, 0.32, 0.84, 0.4), 2),
+    tagged(box(0.66, 0.28, 0.66, 0.72), 2),
+    tagged(box(1, 0.9, 0.8, 0), 3),
+    tagged(box(0.6, 0.1, 0.5, 0.9), 3),
+  ]
+  return mergeGeometries(parts, false)
+}
+
+/**
+ * Rooftops, placed at the live building height by the shader. Unit footprint,
+ * real-world height (the crown's instance matrix does not scale in y).
+ *   0 nothing
+ *   1 parapet rim
+ *   2 parapet plus plant rooms
+ *   3 spire with a warning light (emit = 1)
+ *   4 water tank
+ */
+function crownGeometry(): THREE.BufferGeometry {
+  const box = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z)
+  const emit = (g: THREE.BufferGeometry, v: number) => {
+    const n = g.getAttribute('position').count
+    g.setAttribute('emit', new THREE.Float32BufferAttribute(new Float32Array(n).fill(v), 1))
+    return g
+  }
+  const rim = (variant: number) => [
+    tagged(box(1, 0.08, 0.07, 0, 0, -0.465), variant),
+    tagged(box(1, 0.08, 0.07, 0, 0, 0.465), variant),
+    tagged(box(0.07, 0.08, 1, -0.465, 0, 0), variant),
+    tagged(box(0.07, 0.08, 1, 0.465, 0, 0), variant),
+  ]
+  const parts = [
+    ...rim(1),
+    ...rim(2),
+    tagged(box(0.3, 0.16, 0.22, -0.2, 0, 0.15), 2),
+    tagged(box(0.18, 0.1, 0.18, 0.22, 0, -0.18), 2),
+    tagged(box(0.1, 0.22, 0.1, 0.25, 0, 0.25), 2),
+    ...rim(3),
+    tagged(box(0.16, 0.25, 0.16, 0, 0, 0), 3),
+    tagged(box(0.05, 1.3, 0.05, 0, 0.25, 0), 3),
+    emit(tagged(box(0.06, 0.06, 0.06, 0, 1.55, 0), 3), 1),
+    tagged(box(0.05, 0.3, 0.05, 0.14, 0, 0.14), 4),
+    tagged(box(0.05, 0.3, 0.05, -0.14, 0, 0.14), 4),
+    tagged(box(0.05, 0.3, 0.05, 0.14, 0, -0.14), 4),
+    tagged(box(0.05, 0.3, 0.05, -0.14, 0, -0.14), 4),
+    tagged(new THREE.CylinderGeometry(0.17, 0.17, 0.3, 10).translate(0, 0.45, 0), 4),
+  ]
+  for (const g of parts) if (!g.getAttribute('emit')) emit(g, 0)
+  return mergeGeometries(parts, false)
+}
+
+const BOX = bodyGeometry()
+const CROWN = crownGeometry()
 
 const HOVER: RGB = [1, 1, 1]
 const PARTNER: RGB = [1.0, 0.68, 0.5] // coupled to the selection
@@ -94,19 +170,20 @@ export function Buildings({
       uGhost: { value: new THREE.Vector3(...GHOST) },
       uLost: { value: new THREE.Vector3(0.42, 0.12, 0.14) }, // departure simulation: goes dark red
       uWindows: { value: 1 },
-      uWindowBase: { value: 0.15 },
+      uWindowBase: { value: 0.2 },
+      uTime: { value: 0 },
     }),
     [timeline, textures, city],
   )
 
   const material = useMemo(() => {
-    const m = new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.1 })
+    const m = new THREE.MeshStandardMaterial({ roughness: 0.5, metalness: 0.2, envMapIntensity: 0.55 })
     m.customProgramCacheKey = () => 'csky-buildings'
     m.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms)
       shader.vertexShader = VERT_PARS + shader.vertexShader
         .replace('#include <color_vertex>', '#include <color_vertex>\n' + VERT_SAMPLE)
-        .replace('#include <begin_vertex>', VERT_BEGIN)
+        .replace('#include <begin_vertex>', VERT_BEGIN + VERT_VARIANT)
       shader.fragmentShader = FRAG_PARS + shader.fragmentShader
         .replace('void main() {', 'void main() {\n vec3 csky_windowGlow = vec3(0.0);')
         .replace('#include <color_fragment>', '#include <color_fragment>\n' + FRAG_FACADE)
@@ -121,8 +198,9 @@ export function Buildings({
     uniforms.uHeightMode.value = HEIGHT_MODE[heightScale]
   }, [uniforms, mode, heightScale])
 
-  useFrame(() => {
+  useFrame(({ clock }) => {
     uniforms.uT.value = useStore.getState().t
+    uniforms.uTime.value = clock.elapsedTime
   })
 
   // --- instance geometry ---------------------------------------------------
@@ -168,11 +246,40 @@ export function Buildings({
     return attr
   }, [city, visible, lost])
 
+  // Silhouettes: tall files get towers and setbacks, wide short ones stay
+  // blocks; rooftops follow the silhouette. Chosen once per city from the
+  // file's size, so a building keeps its shape through time.
+  const aVariant = useMemo(() => {
+    const body = new Float32Array(Math.max(1, city.files.length))
+    const crown = new Float32Array(Math.max(1, city.files.length))
+    const lines = visible.map((fi) => city.files[fi]!.lines).sort((a, b) => a - b)
+    const pct = (p: number) => lines[Math.min(lines.length - 1, Math.floor(lines.length * p))] ?? 0
+    const tall = pct(0.8)
+    const mid = pct(0.5)
+    visible.forEach((fi, slot) => {
+      const f = city.files[fi]!
+      const r = fract(fi * 0.6180339887)
+      const wide = Math.min(f.w, f.d) >= 1.1
+      if (f.lines >= tall && wide) {
+        body[slot] = r < 0.45 ? 1 : r < 0.8 ? 2 : 3
+        crown[slot] = r < 0.3 ? 3 : r < 0.75 ? 2 : 1
+      } else if (f.lines >= mid && wide) {
+        body[slot] = r < 0.25 ? 2 : 0
+        crown[slot] = r < 0.35 ? 2 : r < 0.5 ? 4 : 1
+      } else {
+        body[slot] = 0
+        crown[slot] = wide && r < 0.4 ? 1 : 0
+      }
+    })
+    return { body: new THREE.InstancedBufferAttribute(body, 1), crown: new THREE.InstancedBufferAttribute(crown, 1) }
+  }, [city, visible])
+
   useEffect(() => {
     const m = mesh.current
     m.geometry.setAttribute('aFile', aFile)
     m.geometry.setAttribute('aFlags', aFlags)
-  }, [aFile, aFlags])
+    m.geometry.setAttribute('aVariant', aVariant.body)
+  }, [aFile, aFlags, aVariant])
 
   // --- static colors (language/age) + hover/select highlight ---------------
   const ctx = useMemo(() => makeColorContext(city, mode), [city, mode])
@@ -228,17 +335,86 @@ export function Buildings({
   }
 
   return (
-    <instancedMesh
-      ref={mesh}
-      args={[BOX, material, Math.max(1, city.files.length)]}
-      castShadow
-      receiveShadow
-      frustumCulled={false}
-      onPointerMove={interactive ? onMove : undefined}
-      onPointerOut={interactive ? () => hover(null) : undefined}
-      onClick={interactive ? onClick : undefined}
-    />
+    <>
+      <instancedMesh
+        ref={mesh}
+        args={[BOX, material, Math.max(1, city.files.length)]}
+        castShadow
+        receiveShadow
+        frustumCulled={false}
+        onPointerMove={interactive ? onMove : undefined}
+        onPointerOut={interactive ? () => hover(null) : undefined}
+        onClick={interactive ? onClick : undefined}
+      />
+      <Crowns city={city} visible={visible} uniforms={uniforms} aFile={aFile} aVariant={aVariant.crown} aBody={aVariant.body} />
+    </>
   )
+}
+
+function fract(x: number) {
+  return x - Math.floor(x)
+}
+
+/**
+ * Rooftop details as a second instanced mesh. The instance matrix carries
+ * the footprint; the shader samples the same keyframe textures as the
+ * bodies and lifts each crown to its building's live height.
+ */
+function Crowns({
+  city,
+  visible,
+  uniforms,
+  aFile,
+  aVariant,
+  aBody,
+}: {
+  city: City
+  visible: number[]
+  uniforms: Record<string, THREE.IUniform>
+  aFile: THREE.InstancedBufferAttribute
+  aVariant: THREE.InstancedBufferAttribute
+  aBody: THREE.InstancedBufferAttribute
+}) {
+  const mesh = useRef<THREE.InstancedMesh>(null!)
+  const material = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ color: '#2b2b2d', roughness: 0.7, metalness: 0.3 })
+    m.customProgramCacheKey = () => 'csky-crowns'
+    m.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, uniforms)
+      shader.vertexShader = CROWN_VERT_PARS + shader.vertexShader.replace('#include <begin_vertex>', CROWN_VERT_BEGIN)
+      shader.fragmentShader =
+        'varying float vCskyEmit;\nuniform float uTime;\n' +
+        shader.fragmentShader.replace(
+          '#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\n if (vCskyEmit > 0.5) totalEmissiveRadiance += vec3(3.0, 0.2, 0.15) * (0.3 + 0.7 * step(0.5, fract(uTime * 0.8 + vCskyEmit)));',
+        )
+    }
+    return m
+  }, [uniforms])
+  useEffect(() => () => material.dispose(), [material])
+
+  useEffect(() => {
+    const m = mesh.current
+    const mat = new THREE.Matrix4()
+    const pos = new THREE.Vector3()
+    const scl = new THREE.Vector3()
+    const q = new THREE.Quaternion()
+    visible.forEach((fi, slot) => {
+      const f = city.files[fi]!
+      pos.set(f.x + f.w / 2, 0, f.z + f.d / 2)
+      scl.set(Math.max(0.2, f.w - LOT_MARGIN), 1, Math.max(0.2, f.d - LOT_MARGIN))
+      mat.compose(pos, q, scl)
+      m.setMatrixAt(slot, mat)
+    })
+    m.count = visible.length
+    m.instanceMatrix.needsUpdate = true
+    m.geometry.setAttribute('aFile', aFile)
+    m.geometry.setAttribute('aVariant', aVariant)
+    m.geometry.setAttribute('aBody', aBody)
+    m.computeBoundingSphere()
+  }, [city, visible, aFile, aVariant, aBody])
+
+  return <instancedMesh ref={mesh} args={[CROWN, material, Math.max(1, city.files.length)]} frustumCulled={false} raycast={() => null} />
 }
 
 // ---------------------------------------------------------------------------
@@ -248,6 +424,8 @@ const VERT_PARS = /* glsl */ `
 attribute float aFile;
 attribute float aHighlight;
 attribute float aFlags;
+attribute float aVariant;
+attribute float variant;
 uniform vec3 uGhost;
 uniform vec3 uLost;
 uniform sampler2D uLines;
@@ -358,6 +536,53 @@ csky_sy = max(1e-4, length(instanceMatrix[1].xyz));
 vec3 transformed = vec3(position.x, position.y * csky_h / csky_sy, position.z);
 `
 
+// Only this instance's silhouette survives; the rest collapse to a point.
+const VERT_VARIANT = /* glsl */ `
+if (abs(variant - aVariant) > 0.5) transformed = vec3(0.0);
+`
+
+const CROWN_VERT_PARS = /* glsl */ `
+attribute float aFile;
+attribute float aVariant;
+attribute float aBody;
+attribute float variant;
+attribute float emit;
+uniform sampler2D uLines;
+uniform float uT;
+uniform int uK;
+uniform int uTexW;
+uniform int uHeightMode;
+uniform float uMaxLines;
+varying float vCskyEmit;
+ivec2 cskyTexel(int idx) { return ivec2(idx % uTexW, idx / uTexW); }
+float cskyLines(int idx) { return texelFetch(uLines, cskyTexel(idx), 0).r; }
+float cskyHeight(float lines) {
+  if (lines <= 0.0) return 0.0;
+  float h;
+  if (uHeightMode == 0) h = sqrt(lines) * 0.4;
+  else if (uHeightMode == 1) h = log2(1.0 + lines) * 2.2;
+  else h = lines / max(1.0, uMaxLines) * 70.0;
+  return clamp(h, 0.6, 70.0);
+}
+`
+
+// Lift the crown to the live height; the footprint comes from the instance
+// matrix, the height does not, so a parapet is the same thickness on every
+// building. Nothing is drawn where the building does not exist yet.
+const CROWN_VERT_BEGIN = /* glsl */ `
+int csky_f = int(aFile + 0.5);
+float csky_t = clamp(uT, 0.0, float(uK - 1));
+int csky_k0 = int(floor(csky_t));
+int csky_k1 = min(csky_k0 + 1, uK - 1);
+float csky_fr = csky_t - float(csky_k0);
+float csky_h = mix(cskyHeight(cskyLines(csky_f * uK + csky_k0)), cskyHeight(cskyLines(csky_f * uK + csky_k1)), csky_fr);
+// Towers and setbacks narrow toward the top; shrink the crown to the top storey.
+float csky_top = aBody < 0.5 ? 1.0 : aBody < 1.5 ? 0.72 : aBody < 2.5 ? 0.66 : 0.5;
+vec3 transformed = vec3(position.x * csky_top, position.y + csky_h, position.z * csky_top);
+if (abs(variant - aVariant) > 0.5 || csky_h <= 0.0 || aVariant < 0.5) transformed = vec3(0.0);
+vCskyEmit = emit * (1.0 + fract(aFile * 0.37));
+`
+
 const FRAG_PARS = /* glsl */ `
 varying vec3 vCskyEmissive;
 varying vec3 vCskyPos;
@@ -376,26 +601,42 @@ float cskyHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758
 const FRAG_FACADE = /* glsl */ `
 {
   vec3 n = normalize(vCskyNrm);
-  diffuseColor.rgb *= 0.9 + 0.2 * fract(vCskySeed * 7.31);
-  if (n.y > 0.5) diffuseColor.rgb *= 0.78;
-  if (uWindows > 0.5 && abs(n.y) < 0.5 && vCskyH > 1.3) {
+  float s1 = fract(vCskySeed * 7.31);
+  float s2 = fract(vCskySeed * 3.17);
+  diffuseColor.rgb *= 0.85 + 0.3 * s1;
+  if (n.y > 0.5) {
+    // Roofs: flat grey membrane, a little lighter than the walls.
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.16, 0.16, 0.17), 0.8);
+  } else if (abs(n.y) < 0.5) {
     float along = abs(n.x) > 0.5 ? vCskyPos.z : vCskyPos.x;
     float up = vCskyPos.y;
-    vec2 cs = vec2(0.46, 0.6);
-    vec2 g = vec2(along, up) / cs;
-    vec2 cell = floor(g);
-    vec2 f = fract(g);
-    bool inWin = f.x > 0.24 && f.x < 0.76 && f.y > 0.2 && f.y < 0.7 && up > 0.5 && up < vCskyH - 0.3;
+    // Floors: a storey every 0.62 units, a slab line between them, and a
+    // taller ground floor with wider openings.
+    float floorH = 0.62;
+    float winW = 0.42 + 0.14 * s2;
+    bool ground = up < floorH * 1.3;
+    float band = ground ? floorH * 1.3 : floorH;
+    float fy = ground ? up / band : (up - floorH * 1.3) / band;
+    float fx = along / winW;
+    vec2 cell = vec2(floor(fx), ground ? -1.0 : floor(fy));
+    vec2 f = vec2(fract(fx), fract(fy));
+    // Slab edge between floors and a pilaster every few bays.
+    float slab = smoothstep(0.0, 0.06, f.y) * (1.0 - smoothstep(0.94, 1.0, f.y));
+    float pilaster = mod(cell.x + floor(s1 * 4.0), 4.0 + floor(s2 * 3.0)) < 1.0 ? 0.75 : 1.0;
+    diffuseColor.rgb *= mix(0.55, 1.0, slab) * pilaster;
+    bool inWin = uWindows > 0.5 && vCskyH > 1.3 && f.x > 0.26 && f.x < 0.74 && f.y > 0.2 && f.y < (ground ? 0.85 : 0.72) && up < vCskyH - 0.25 && pilaster > 0.9;
     if (inWin) {
       float r = cskyHash(cell + vec2(vCskySeed * 91.7, vCskySeed * 13.3) + floor(n.x * 2.0 + n.z * 3.0));
-      float litFrac = uWindowBase + 0.7 * vCskyAct;
+      // Some buildings are busy at this hour, some have gone home.
+      float litFrac = (uWindowBase + 0.6 * vCskyAct) * (0.6 + 0.8 * s1) + (ground ? 0.35 : 0.0);
       if (r < litFrac) {
         float warm = fract(r * 17.0);
-        vec3 light = mix(vec3(1.0, 0.78, 0.45), vec3(0.85, 0.92, 1.0), step(0.8, warm));
-        csky_windowGlow = light * (1.1 + 0.9 * fract(r * 31.0));
-        diffuseColor.rgb = light * 0.7;
+        vec3 light = warm < 0.7 ? vec3(1.0, 0.8, 0.5) : warm < 0.9 ? vec3(0.9, 0.94, 1.0) : vec3(0.75, 0.95, 0.9);
+        csky_windowGlow = light * (0.9 + 0.9 * fract(r * 31.0));
+        diffuseColor.rgb = light * 0.6;
       } else {
-        diffuseColor.rgb *= 0.38;
+        // Dark glass: keeps a little sky in it via the environment map.
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.08), 0.85);
       }
     }
   }

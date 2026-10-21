@@ -1,21 +1,40 @@
 import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { useStore } from '../store'
 import type { TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
+import { sidewalkWidth, streetWidth } from './Districts'
+import { furnishedPlates } from './Streets'
 
-const CAR = new THREE.BoxGeometry(0.34, 0.1, 0.16).translate(0, 0.05, 0)
-const MAX_CARS = 1600
+const MAX_CARS = 1400
 const RECENT = 2 * 365 * 86400
 
-// Over 1.0 so the bloom pass catches them: streams of head and tail lights.
-const HEAD = new THREE.Color(2.3, 2.1, 1.7)
-const TAIL = new THREE.Color(2.6, 0.55, 0.4)
+// Body colors: mostly dark and silver, the odd red or white.
+const PAINT = ['#1d1f24', '#2a2d33', '#8d9097', '#c9cbd0', '#5a1d1f', '#1c2a44', '#3b3d42', '#e8e6e0'].map((c) => new THREE.Color(c))
 
-/** Mirrors layout.street in the analyzer: boulevards up top, alleys deep down. */
-function streetWidth(depth: number) {
-  return Math.max(0.8, 3 - 0.6 * depth)
+/**
+ * One car: body, cabin, two headlights and two tail lights, merged into a
+ * single geometry. `emit` marks the lamps for the shader (1 head, 2 tail).
+ * The car faces +x.
+ */
+function carGeometry(): THREE.BufferGeometry {
+  const parts: THREE.BufferGeometry[] = []
+  const add = (g: THREE.BufferGeometry, emit: number) => {
+    const n = g.getAttribute('position').count
+    g.setAttribute('emit', new THREE.Float32BufferAttribute(new Float32Array(n).fill(emit), 1))
+    parts.push(g)
+  }
+  add(new THREE.BoxGeometry(0.46, 0.13, 0.22).translate(0, 0.1, 0), 0)
+  add(new THREE.BoxGeometry(0.24, 0.1, 0.19).translate(-0.02, 0.21, 0), 0)
+  for (const z of [-0.07, 0.07]) {
+    add(new THREE.BoxGeometry(0.02, 0.04, 0.05).translate(0.23, 0.1, z), 1)
+    add(new THREE.BoxGeometry(0.02, 0.03, 0.05).translate(-0.23, 0.1, z), 2)
+  }
+  const merged = mergeGeometries(parts, false)
+  for (const p of parts) p.dispose()
+  return merged
 }
 
 interface Loop {
@@ -30,48 +49,54 @@ interface Loop {
 
 interface Car {
   loop: number
-  s: number // distance along the loop
-  v: number // units per second, clockwise
+  s: number
+  v: number
 }
 
 /**
- * Traffic: small lights driving the ring road around every district, as
- * many as the district has had recent work. The streets are the gaps the
- * layout left between sibling plates, so one clockwise lane per plate gives
- * opposite directions on the two sides of every street for free. A district
- * has no traffic until its first file exists at the current keyframe.
+ * Traffic on the boulevards. Each district plate has one clockwise lane
+ * around it, a quarter street out from the sidewalk, so the two sides of
+ * every street carry opposite directions. Busy districts (recent work) get
+ * more cars. A district has no traffic until its first file exists.
  */
 export function Traffic({ city, timeline }: { city: City; timeline: TimelineData }) {
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const k = useStore((s) => s.k)
-  const material = useMemo(() => new THREE.MeshBasicMaterial({ toneMapped: false }), [])
+  const geometry = useMemo(() => carGeometry(), [])
+  const material = useMemo(() => {
+    const m = new THREE.MeshStandardMaterial({ roughness: 0.35, metalness: 0.6 })
+    m.onBeforeCompile = (shader) => {
+      shader.vertexShader = 'attribute float emit;\nvarying float vEmit;\n' + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvEmit = emit;')
+      shader.fragmentShader =
+        'varying float vEmit;\n' +
+        shader.fragmentShader.replace(
+          '#include <emissivemap_fragment>',
+          '#include <emissivemap_fragment>\n if (vEmit > 1.5) totalEmissiveRadiance += vec3(2.4, 0.25, 0.2); else if (vEmit > 0.5) totalEmissiveRadiance += vec3(2.8, 2.6, 2.2);',
+        )
+    }
+    return m
+  }, [])
+  useEffect(() => () => {
+    geometry.dispose()
+    material.dispose()
+  }, [geometry, material])
 
   const { loops, cars, minBorn } = useMemo(() => buildTraffic(city, timeline), [city, timeline])
-
-  // Which loops are live at this keyframe.
   const live = useMemo(() => loops.map((l) => (minBorn[l.dir] ?? -1) >= 0 && (minBorn[l.dir] ?? 0) <= k), [loops, minBorn, k])
 
   useEffect(() => {
     const m = mesh.current
-    const color = new THREE.Color()
-    cars.forEach((_, i) => {
-      color.copy(i % 5 < 3 ? HEAD : TAIL)
-      m.setColorAt(i, color)
-    })
+    cars.forEach((_, i) => m.setColorAt(i, PAINT[(i * 7) % PAINT.length]!))
     m.count = cars.length
     if (m.instanceColor) m.instanceColor.needsUpdate = true
   }, [cars])
 
-  const mat = useMemo(() => new THREE.Matrix4(), [])
-  const pos = useMemo(() => new THREE.Vector3(), [])
-  const q = useMemo(() => new THREE.Quaternion(), [])
-  const up = useMemo(() => new THREE.Vector3(0, 1, 0), [])
-  const one = useMemo(() => new THREE.Vector3(1, 1, 1), [])
-  const zero = useMemo(() => new THREE.Vector3(0, 0, 0), [])
+  const tmp = useMemo(() => ({ mat: new THREE.Matrix4(), pos: new THREE.Vector3(), q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), one: new THREE.Vector3(1, 1, 1), zero: new THREE.Vector3() }), [])
 
   useFrame((_, dt) => {
     const m = mesh.current
     if (!m || cars.length === 0) return
+    const { mat, pos, q, up, one, zero } = tmp
     const step = Math.min(dt, 0.05)
     for (let i = 0; i < cars.length; i++) {
       const c = cars[i]!
@@ -83,7 +108,7 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
       }
       c.s += c.v * step
       if (c.s >= l.perimeter) c.s -= l.perimeter
-      // Clockwise from the top-left corner: along +x, then +z, then -x, then -z.
+      // Clockwise from the top-left corner: +x, then +z, then -x, then -z.
       let s = c.s
       let yaw: number
       if (s < l.w) {
@@ -108,13 +133,11 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
   })
 
   if (cars.length === 0) return null
-  return <instancedMesh ref={mesh} args={[CAR, material, Math.max(1, cars.length)]} frustumCulled={false} raycast={() => null} />
+  return <instancedMesh ref={mesh} args={[geometry, material, Math.max(1, cars.length)]} frustumCulled={false} raycast={() => null} castShadow />
 }
 
 function buildTraffic(city: City, timeline: TimelineData): { loops: Loop[]; cars: Car[]; minBorn: Int32Array } {
   const since = city.repo.lastCommit - RECENT
-  // Recent work per district, counted up through every ancestor, and the
-  // first keyframe at which any file of the district exists.
   const active = new Int32Array(city.dirs.length)
   const minBorn = new Int32Array(city.dirs.length).fill(-1)
   city.files.forEach((f, fi) => {
@@ -134,19 +157,19 @@ function buildTraffic(city: City, timeline: TimelineData): { loops: Loop[]; cars
 
   const loops: Loop[] = []
   const want: number[] = []
-  city.dirs.forEach((d, i) => {
-    if (d.depth < 1 || d.depth > 4 || d.files === 0) return
-    // One lane just outside the curb, on the parent's plate.
-    const off = 0.09 + Math.max(0.22, streetWidth(d.depth) * 0.28)
+  for (const d of furnishedPlates(city)) {
+    if (d.files === 0) continue
+    const i = d.id
+    // The lane runs a quarter street out: clear of the sidewalk, short of the centre line.
+    const off = Math.max(sidewalkWidth(d.depth) + 0.2, streetWidth(d.depth) * 0.27)
     const x = d.x - off
     const z = d.z - off
     const w = d.w + off * 2
     const dd = d.d + off * 2
     const perimeter = 2 * (w + dd)
     loops.push({ dir: i, x, z, w, d: dd, y: 0.08 * d.depth, perimeter })
-    // Every district gets a trickle for its size; recent work adds the rush hour.
-    want.push(Math.min(Math.floor(perimeter / 4), Math.max(1, Math.round(active[i]! * 0.6 + d.files * 0.08 + perimeter / 40))))
-  })
+    want.push(Math.min(Math.floor(perimeter / 5), Math.max(1, Math.round(active[i]! * 0.5 + d.files * 0.05 + perimeter / 60))))
+  }
   const total = want.reduce((a, b) => a + b, 0)
   const scale = total > MAX_CARS ? MAX_CARS / total : 1
   const cars: Car[] = []
@@ -157,7 +180,7 @@ function buildTraffic(city: City, timeline: TimelineData): { loops: Loop[]; cars
   }
   loops.forEach((l, li) => {
     const n = Math.max(1, Math.round(want[li]! * scale))
-    for (let i = 0; i < n; i++) cars.push({ loop: li, s: rnd() * l.perimeter, v: 4 + rnd() * 4 })
+    for (let i = 0; i < n; i++) cars.push({ loop: li, s: rnd() * l.perimeter, v: 2.5 + rnd() * 2.5 })
   })
   return { loops, cars: cars.slice(0, MAX_CARS), minBorn }
 }
