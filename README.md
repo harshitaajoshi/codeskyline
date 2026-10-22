@@ -5,7 +5,7 @@ codebase as a 3D city built from its commit history: folders are districts,
 files are buildings, height is lines of code, and the buildings on fire are the
 hotspots where the next bugs will be fixed.
 
-![react/react as a city, colored by owner: 7.3k buildings, 135 on fire, and the findings panel reading "if @josephsavona left, 2916 files would have no active owner"](docs/images/react-owners.png)
+![react/react as a city at dusk, colored by owner: 7.3k buildings, 135 on fire, and the findings panel reading "if @josephsavona left, 2915 files would have no active owner"](docs/images/react-owners.png)
 
 Everything comes from `git log`. No working tree is checked out, no code is
 uploaded anywhere, and the hosted analyzer runs in a scale-to-zero container
@@ -47,16 +47,18 @@ Each one is a button that shows it.
   lens when a city is built against a base commit.
 - **Walk mode.** Drop to street level and walk the districts with collision.
 - **Find anything.** ⌘K jumps to a file; the camera flies there and tags it.
-- **A tour** on every open, skippable in one click, and a landing page where the
-  city demonstrates each idea as you scroll.
+  `?` lists every key.
+- **A tour** the first time a city opens (replay it any time), and a landing
+  page where the city demonstrates each idea as you scroll.
 - **A real city at dusk.** Towers with setbacks and spires, floors and
   storefronts on the facades, sidewalks, lamps, trees, lane markings, traffic
   with headlights, a harbour the skyline reflects in, and fire that lights up
   the buildings around it. Cranes appear on buildings that are growing;
   demolitions leave rubble.
-- **Two looks.** Dusk (the default) and Noir (black and white, the fires are
-  the only colour). Pick one in the lens panel or with `?theme=noir`; shared
-  links and postcards keep it.
+- **Two looks, and daylight.** Dusk (the default) and Noir (black and white,
+  the fires are the only colour), each in dusk or daylight. Pick them in the
+  lens panel or with `?theme=noir&day=1`; shared links and postcards keep
+  them, and your preferences are remembered.
 - **Postcard and film.** Save a 2x picture of the city, or run a forty second
   flythrough over its findings.
 - **Shareable.** Every view is a URL (`/r/owner/repo?t=0.4&mode=owners&f=12`),
@@ -66,6 +68,11 @@ Each one is a button that shows it.
 - **Yours stays yours.** The front page lists the cities this browser built,
   with how far each has fallen behind its repository and a rebuild; nobody
   else sees them. A short curated set is featured for first-time visitors.
+- **No dead ends.** A city link that is still building shows the live
+  progress and opens when it lands; one that was never built offers to build
+  it; a bad address, a private repository, a repository over the size cap and
+  a spent monthly budget each say so plainly. Phones get the repository's
+  skyline and a note that the city wants a desktop.
 
 ![The landing page: the headline "every repository is a city" over the live express city](docs/images/landing.png)
 
@@ -85,17 +92,21 @@ entirely in your CI; nothing leaves the runner. See [`action/`](action/README.md
 
 ## Hosted service
 
-`edge/` is a Cloudflare Worker (viewer, API, badges, short links, gallery) with
-the analyzer running in a Cloudflare Container that scales to zero. Paste a repo
-URL and watch it build with live progress, including git's own clone percentage
-for the big ones. Cities are immutable per commit and served pre-gzipped from R2.
+`edge/` is a Cloudflare Worker (viewer, API, badges, link previews, short
+links) with the analyzer running in a Cloudflare Container that scales to zero.
+Paste a repo URL and watch it build with live progress, an estimate from the
+repository's size, and git's own clone percentage for the big ones. Cities are
+immutable per commit and served pre-gzipped from R2; `/api/repo/owner/name`
+says whether a city is behind its repository.
 
 ```md
 ![CodeSkyline](https://<your-worker>/badge/owner/repo.svg)
 ```
 
 The badge takes `?theme=light`, `?label=<text>` and `?bare=1` (the silhouette
-alone, for your own layout). Hotspot columns are drawn in orange.
+alone, for your own layout). Hotspot columns are drawn in orange, and the
+stats end with how long ago the city was built. Every `/r/owner/repo` page
+carries Open Graph tags and a 1200×630 preview image rendered in the Worker.
 
 Deploy steps and the cost guardrails (monthly job budget, repository size cap,
 rate limits) are in [`edge/README.md`](edge/README.md). Budget: the $5 Workers
@@ -140,8 +151,8 @@ pnpm dev:edge       # http://localhost:8787, the hosted API with a local contain
 ```
 
 Drop any `*.city.json` produced by `csky` onto the page to render it. Drag to
-orbit, scroll to zoom, space to play, ⌘K (Ctrl+K) to find a file, Walk to stroll
-the streets.
+orbit, scroll to zoom, space to play, ⌘K (Ctrl+K) to find a file, `d` for
+daylight, `?` for every key, Walk to stroll the streets.
 
 ## Development
 
@@ -150,7 +161,7 @@ cd analyzer && go test ./...          # analyzer
 pnpm --filter web test                # viewer unit tests
 pnpm --filter web typecheck
 pnpm --filter edge test               # worker
-node web/scripts/shot.mjs http://localhost:5173 shot.png   # headless screenshot + console
+node web/scripts/shot.mjs http://localhost:5173 shot.png   # headless screenshot on the GPU + console
 ```
 
 [`docs/architecture.md`](docs/architecture.md) explains the pipeline, the city
