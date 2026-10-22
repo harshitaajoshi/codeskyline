@@ -74,6 +74,11 @@ try {
     await send('Runtime.evaluate', { expression: process.env.SHOT_JS, awaitPromise: true })
     await sleep(+(process.env.SHOT_SETTLE ?? 2500))
   }
+  // SHOT_JS2 runs after SHOT_JS has settled, for a second step such as after a reload.
+  if (process.env.SHOT_JS2) {
+    await send('Runtime.evaluate', { expression: process.env.SHOT_JS2, awaitPromise: true })
+    await sleep(+(process.env.SHOT_SETTLE2 ?? 2500))
+  }
   const shot = await send('Page.captureScreenshot', { format: 'png' })
   writeFileSync(out, Buffer.from(shot.data, 'base64'))
   console.log(`saved ${out}`)

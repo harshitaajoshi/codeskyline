@@ -16,7 +16,44 @@ export interface AnalyzeResponse extends Partial<JobState> {
   owner: string
   name: string
   sha: string
+  /** GitHub's size of the repository, for the time estimate. */
+  sizeKB?: number
   error?: string
+}
+
+/** Where a repository stands: the city we have, the commit GitHub is on, a build under way. */
+export interface RepoStatus {
+  built: { key: string; sha: string; analyzed_at: number; files: number; lines: number; commits: number; authors: number; burning: number } | null
+  latest: { sha: string; behind: number | null } | null
+  job: JobState | null
+}
+
+/**
+ * A rough build time from the repository's size on GitHub: the clone
+ * dominates, at roughly a megabyte a second on the hosted analyzer, plus a
+ * fixed cost to wake the container and read the history.
+ */
+export function etaSeconds(sizeKB: number | undefined): number {
+  if (!sizeKB) return 60
+  return Math.round(20 + sizeKB / 1200)
+}
+
+export function etaText(sizeKB: number | undefined): string {
+  const s = etaSeconds(sizeKB)
+  if (s < 50) return 'under a minute'
+  if (s < 100) return 'about a minute'
+  return `about ${Math.round(s / 60)} minutes`
+}
+
+/** null when the repository exists but has no city; throws when there is no such repository. */
+export async function fetchRepo(owner: string, name: string, fresh = true): Promise<RepoStatus | null> {
+  const res = await fetch(`/api/repo/${owner}/${name}${fresh ? '' : '?fresh=0'}`)
+  if (res.status === 404) {
+    const body = (await res.json().catch(() => ({}))) as { error?: string }
+    if (body.error === 'not analyzed yet') return null
+    throw new Error(body.error ?? 'repository not found')
+  }
+  return json<RepoStatus>(res)
 }
 
 export interface GalleryEntry {

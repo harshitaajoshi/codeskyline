@@ -9,6 +9,8 @@ export interface BadgeOptions {
   theme?: 'dark' | 'light'
   /** Only the silhouette: no frame, label or stats (gallery thumbnails). */
   bare?: boolean
+  /** When the city was built; shown as an age so the badge says how fresh it is. */
+  builtAt?: number
 }
 
 /**
@@ -31,7 +33,8 @@ export function skylineBadge(s: Summary, opts: BadgeOptions = {}): string {
   const skyH = 18
   const pad = bare ? 0 : 10
   const labelW = label ? 7.2 * label.length + 12 : 0
-  const stats = bare ? '' : `${compact(s.files)} files · ${compact(s.lines)} lines${s.burning ? ` · ${s.burning} on fire` : ''}`
+  const age = opts.builtAt ? ` · ${ago(opts.builtAt)}` : ''
+  const stats = bare ? '' : `${compact(s.files)} files · ${compact(s.lines)} lines${s.burning ? ` · ${s.burning} on fire` : ''}${age}`
   const statsW = stats ? 6.6 * stats.length + 12 : 0
   const w = pad + labelW + skyW + (stats ? pad + statsW : 0)
 
@@ -60,6 +63,15 @@ ${baseline}
 ${bars}
 <text x="${pad + labelW + skyW + pad}" y="18" font-family="${font}" font-size="10.5" letter-spacing="0.02em" fill="${muted}">${esc(stats)}</text>
 </svg>`
+}
+
+/** "3d ago", "2w ago", "today". */
+export function ago(t: number, now = Date.now()): string {
+  const d = Math.max(0, Math.floor((now - t) / 86400000))
+  if (d === 0) return 'today'
+  if (d < 14) return `${d}d ago`
+  if (d < 60) return `${Math.floor(d / 7)}w ago`
+  return `${Math.floor(d / 30)}mo ago`
 }
 
 export function compact(n: number): string {

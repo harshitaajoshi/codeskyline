@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
 import type { City } from './city/types'
 import type { ColorMode } from './city/colors'
 import type { HeightScale } from './city/scales'
@@ -79,7 +80,9 @@ interface State {
   setTourStep: (s: number | null) => void
 }
 
-export const useStore = create<State>((set, get) => ({
+export const useStore = create<State>()(
+  persist(
+    (set, get) => ({
   city: null,
   status: 'idle',
   mode: 'churn',
@@ -173,7 +176,14 @@ export const useStore = create<State>((set, get) => ({
   setWalking: (walking) => set({ walking, hovered: null }),
   setLensOpen: (lensOpen) => set({ lensOpen }),
   setTourStep: (tourStep) => set({ tourStep }),
-}))
+    }),
+    {
+      name: 'csky.prefs.v1',
+      // Only what a returning visitor expects to find as they left it.
+      partialize: (s) => ({ theme: s.theme, heightScale: s.heightScale, hideGenerated: s.hideGenerated, day: s.day, showCoupling: s.showCoupling }),
+    },
+  ),
+)
 
 /** Subscribe-free read used inside the render loop. */
 export const readT = () => useStore.getState().t

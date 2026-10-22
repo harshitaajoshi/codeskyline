@@ -2,7 +2,8 @@ import { Hono } from 'hono'
 import { cors } from 'hono/cors'
 import { skylineBadge } from './badge'
 import { ANALYZER_SHARDS } from './container'
-import { GitHubError, parseRepoInput, resolveRepo } from './github'
+import { GitHubError, commitsBetween, parseRepoInput, resolveRepo } from './github'
+import { ogImage } from './og'
 import { publicState } from './job'
 import type { Env, JobMessage, Summary } from './types'
 
@@ -42,9 +43,10 @@ app.post('/api/analyze', async (c) => {
   }
 
   const key = `${info.owner}/${info.name}@${info.sha}~${FORMAT}`
+  const sizeKB = info.sizeKB
   // Already built for this exact commit? Done.
   const have = await c.env.DB.prepare('SELECT key FROM analyses WHERE key = ?').bind(key).first()
-  if (have) return ok(c, { status: 'ready', key, owner: info.owner, name: info.name, sha: info.sha })
+  if (have) return ok(c, { status: 'ready', key, owner: info.owner, name: info.name, sha: info.sha, sizeKB })
 
   // Single-flight through the job DO; it only enqueues the first time.
   const stub = c.env.JOB.get(c.env.JOB.idFromName(key))
@@ -60,7 +62,7 @@ app.post('/api/analyze', async (c) => {
   }
   const msg: JobMessage = { key, owner: info.owner, name: info.name, sha: info.sha, url: `https://github.com/${info.owner}/${info.name}`, stars: info.stars, defaultBranch: info.defaultBranch }
   const state = await stub.start(msg)
-  return ok(c, { ...publicState(state), owner: info.owner, name: info.name, sha: info.sha })
+  return ok(c, { ...publicState(state), owner: info.owner, name: info.name, sha: info.sha, sizeKB })
 })
 
 app.get('/api/jobs/:key{.+}', async (c) => {
@@ -107,27 +109,125 @@ app.get('/api/city/:owner/:name/:sha', async (c) => {
   })
 })
 
+/**
+ * Where a repository stands: the city we have (if any), the commit GitHub is
+ * on now and how far behind the city is, and a build in progress for that
+ * newer commit (if one is running). Answers "is my city stale?" in one call.
+ */
 app.get('/api/repo/:owner/:name', async (c) => {
   const { owner, name } = c.req.param()
   const row = await c.env.DB.prepare(
     'SELECT key, sha, analyzed_at, files, lines, commits, authors, burning, summary FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1',
   )
     .bind(owner, name)
-    .first()
-  if (!row) return c.json({ error: 'not analyzed yet' }, 404)
-  return ok(c, { ...row, summary: JSON.parse(row.summary as string) })
+    .first<{ key: string; sha: string; analyzed_at: number; files: number; lines: number; commits: number; authors: number; burning: number; summary: string }>()
+  const built = row ? { ...row, summary: JSON.parse(row.summary) as Summary } : null
+
+  let latest: { sha: string; behind: number | null } | null = null
+  let job = null
+  if (c.req.query('fresh') !== '0') {
+    try {
+      const info = await resolveRepo(owner, name, c.env.GITHUB_TOKEN)
+      const behind = built ? await commitsBetween(info.owner, info.name, built.sha, info.sha, c.env.GITHUB_TOKEN) : null
+      latest = { sha: info.sha, behind }
+      if (!built || info.sha !== built.sha) {
+        const stub = c.env.JOB.get(c.env.JOB.idFromName(`${info.owner}/${info.name}@${info.sha}~${FORMAT}`))
+        const s = await stub.get()
+        if (s && s.status !== 'ready') job = publicState(s)
+      }
+    } catch (e) {
+      if (!built) {
+        if (e instanceof GitHubError) return c.json({ error: e.message }, e.status as 404)
+        throw e
+      }
+      // GitHub unreachable: the city is still worth serving; just no freshness.
+    }
+  }
+  if (!built && !job) return c.json({ error: 'not analyzed yet', latest }, 404)
+  c.header('Cache-Control', 'private, max-age=60')
+  return ok(c, { built, latest, job })
 })
 
+/**
+ * The front page shows a short curated set, never everyone's recent builds:
+ * what a stranger pasted is theirs, not a public feed.
+ */
+const FEATURED: [string, string][] = [
+  ['facebook', 'react'],
+  ['expressjs', 'express'],
+  ['vuejs', 'core'],
+  ['fastify', 'fastify'],
+  ['vitejs', 'vite'],
+  ['hono-dev', 'hono'],
+  ['denoland', 'deno'],
+  ['golang', 'go'],
+]
 app.get('/api/gallery', async (c) => {
-  const { results } = await c.env.DB.prepare(
-    `SELECT a.owner, a.name, a.sha, a.analyzed_at, a.files, a.lines, a.commits, a.authors, a.burning, r.stars
-       FROM analyses a JOIN repos r ON r.owner = a.owner AND r.name = a.name
-      WHERE a.key = (SELECT key FROM analyses b WHERE b.owner = a.owner AND b.name = a.name ORDER BY analyzed_at DESC LIMIT 1)
-      ORDER BY r.stars DESC, a.analyzed_at DESC LIMIT 40`,
-  ).all()
-  c.header('Cache-Control', 'public, max-age=120')
+  const rows = await c.env.DB.batch(
+    FEATURED.map(([owner, name]) =>
+      c.env.DB.prepare(
+        `SELECT a.owner, a.name, a.sha, a.analyzed_at, a.files, a.lines, a.commits, a.authors, a.burning, COALESCE(r.stars, 0) AS stars
+           FROM analyses a LEFT JOIN repos r ON r.owner = a.owner AND r.name = a.name
+          WHERE a.owner = ? AND a.name = ? ORDER BY a.analyzed_at DESC LIMIT 1`,
+      ).bind(owner, name),
+    ),
+  )
+  const results = rows.flatMap((r) => r.results)
+  c.header('Cache-Control', 'public, max-age=300')
   return ok(c, results)
 })
+
+// ---------------------------------------------------------------------------
+// Link previews: a PNG per repository, and the city page with its meta tags.
+
+app.get('/og/:owner/:file', async (c) => {
+  const { owner, file } = c.req.param()
+  if (!file.endsWith('.png')) return c.notFound()
+  const name = file.slice(0, -4)
+  const row = await c.env.DB.prepare('SELECT summary FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
+    .bind(owner, name)
+    .first<{ summary: string }>()
+  const summary = row ? (JSON.parse(row.summary) as Summary) : emptySummary(`${owner}/${name}`)
+  const res = await ogImage(summary)
+  res.headers.set('Cache-Control', 'public, max-age=3600, s-maxage=86400')
+  return res
+})
+
+/** The SPA shell with the city's title, description and preview image filled in. */
+app.get('/r/:owner/:name', async (c) => {
+  const { owner, name } = c.req.param()
+  const shell = await c.env.ASSETS.fetch(new Request(new URL('/', c.req.url)))
+  const html = await shell.text()
+  const row = await c.env.DB.prepare('SELECT files, lines, commits, burning FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
+    .bind(owner, name)
+    .first<{ files: number; lines: number; commits: number; burning: number }>()
+  const title = `${owner}/${name} as a city`
+  const desc = row
+    ? `${row.files.toLocaleString()} files, ${row.lines.toLocaleString()} lines, ${row.commits.toLocaleString()} commits${row.burning ? `, ${row.burning} buildings on fire` : ''}. Built from its git history by CodeSkyline.`
+    : 'Every repository is a city. Built from its git history by CodeSkyline.'
+  const origin = c.env.PUBLIC_ORIGIN
+  const tags = [
+    `<title>${esc(title)}</title>`,
+    `<meta name="description" content="${esc(desc)}">`,
+    `<meta property="og:type" content="website">`,
+    `<meta property="og:title" content="${esc(title)}">`,
+    `<meta property="og:description" content="${esc(desc)}">`,
+    `<meta property="og:image" content="${origin}/og/${owner}/${name}.png">`,
+    `<meta property="og:image:width" content="1200">`,
+    `<meta property="og:image:height" content="630">`,
+    `<meta property="og:url" content="${origin}/r/${owner}/${name}">`,
+    `<meta name="twitter:card" content="summary_large_image">`,
+    `<meta name="twitter:title" content="${esc(title)}">`,
+    `<meta name="twitter:description" content="${esc(desc)}">`,
+    `<meta name="twitter:image" content="${origin}/og/${owner}/${name}.png">`,
+  ].join('\n    ')
+  const out = html.replace(/<title>[^<]*<\/title>/, '').replace(/<meta name="description"[^>]*>/, '').replace('</head>', `    ${tags}\n  </head>`)
+  return new Response(out, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } })
+})
+
+function esc(s: string) {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+}
 
 // ---------------------------------------------------------------------------
 // Sharing.
@@ -153,12 +253,12 @@ app.get('/badge/:owner/:file', async (c) => {
   const { owner, file } = c.req.param()
   if (!file.endsWith('.svg')) return c.notFound()
   const name = file.slice(0, -4)
-  const row = await c.env.DB.prepare('SELECT summary FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
+  const row = await c.env.DB.prepare('SELECT summary, analyzed_at FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
     .bind(owner, name)
-    .first<{ summary: string }>()
+    .first<{ summary: string; analyzed_at: number }>()
   const theme = c.req.query('theme') === 'light' ? 'light' : 'dark'
   const svg = row
-    ? skylineBadge(JSON.parse(row.summary) as Summary, { theme, bare: c.req.query('bare') === '1', label: (c.req.query('label') ?? 'codeskyline').slice(0, 40) })
+    ? skylineBadge(JSON.parse(row.summary) as Summary, { theme, bare: c.req.query('bare') === '1', builtAt: row.analyzed_at, label: (c.req.query('label') ?? 'codeskyline').slice(0, 40) })
     : skylineBadge(emptySummary(`${owner}/${name}`), { theme, bare: c.req.query('bare') === '1', label: 'codeskyline · not built yet' })
   return new Response(svg, {
     headers: { 'Content-Type': 'image/svg+xml; charset=utf-8', 'Cache-Control': 'public, max-age=3600, s-maxage=3600' },

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { fetchGallery, requestAnalysis, subscribeJob, type GalleryEntry, type JobState } from '../city/api'
+import { etaText, fetchGallery, fetchRepo, requestAnalysis, subscribeJob, type GalleryEntry, type JobState } from '../city/api'
+import { ago, forgetCity, listCities, rememberCity, type MyCity } from '../city/cities'
 import { SAMPLES, loadSample } from '../city/load'
 import { formatNum } from '../city/scales'
 import { timeAt } from '../city/timeline'
@@ -33,8 +34,9 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
   const [repo, setRepo] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [job, setJob] = useState<JobState | null>(null)
+  const [job, setJob] = useState<(JobState & { sizeKB?: number; started: number }) | null>(null)
   const [gallery, setGallery] = useState<GalleryEntry[]>([])
+  const [mine, setMine] = useState<MyCity[]>(() => listCities())
   const [hero, setHero] = useState<City | null>(null)
   const input = useRef<HTMLInputElement>(null)
   const scroller = useRef<HTMLDivElement>(null)
@@ -60,14 +62,17 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
 
   useEffect(() => {
     if (!job || job.status === 'ready' || job.status === 'error') return
-    return subscribeJob(job.key, setJob)
+    return subscribeJob(job.key, (s) => setJob((prev) => ({ ...s, sizeKB: prev?.sizeKB, started: prev?.started ?? Date.now() })))
   }, [job?.key, job?.status]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (job?.status === 'ready') {
       // Keys look like owner/name@sha~format; the format tag is not part of the sha.
       const m = /^([^/]+)\/([^@]+)@([0-9a-f]+)/.exec(job.key)
-      if (m) onOpen(m[1]!, m[2]!, m[3])
+      if (m) {
+        rememberCity(m[1]!, m[2]!, m[3]!)
+        onOpen(m[1]!, m[2]!, m[3])
+      }
     }
   }, [job, onOpen])
 
@@ -78,8 +83,10 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
     setBusy(true)
     try {
       const r = await requestAnalysis(t.includes('github.com') ? t : `https://github.com/${t}`)
-      if (r.status === 'ready') onOpen(r.owner, r.name, r.sha)
-      else setJob({ key: r.key, status: r.status, stage: r.stage ?? 'queued', detail: r.detail ?? '', log: r.log ?? [] })
+      if (r.status === 'ready') {
+        rememberCity(r.owner, r.name, r.sha)
+        onOpen(r.owner, r.name, r.sha)
+      } else setJob({ key: r.key, status: r.status, stage: r.stage ?? 'queued', detail: r.detail ?? '', log: r.log ?? [], sizeKB: r.sizeKB, started: Date.now() })
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -191,6 +198,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
                   <span className={job.status === 'error' ? 'text-fire' : 'text-ivory'}>{job.status === 'error' ? 'analysis failed' : (STAGE_COPY[job.stage] ?? job.stage)}</span>
                 </div>
                 <div className="text-ivory/50 mt-1 truncate">{job.error ?? job.detail}</div>
+                {job.status !== 'error' && <div className="text-ivory/35 mt-1">usually {etaText(job.sizeKB)} for a repository this size · <Elapsed since={job.started} /></div>}
                 {job.log.length > 1 && (
                   <ul className="text-ivory/35 mt-2 space-y-0.5">
                     {lastPerStage(job.log).slice(-5).map((l, i) => (
@@ -212,12 +220,40 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
         {/* The story: the city behind demonstrates one thing per beat. */}
         <Story city={hero} scroller={scroller} onDone={toTop} />
 
-        {/* Recently built */}
+        {/* Your cities: this browser's, kept locally. */}
+        {mine.length > 0 && (
+          <section className="mx-auto max-w-6xl px-6 pt-20 pb-8">
+            <div className="hairline flex items-end justify-between border-b pb-3">
+              <h2 className="font-display text-[26px] uppercase">Your cities</h2>
+              <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">(07) kept in this browser</span>
+            </div>
+            <ul className="divide-ivory/10 divide-y">
+              {mine.map((c) => (
+                <MyCityRow
+                  key={`${c.owner}/${c.name}`}
+                  city={c}
+                  onOpen={() => onOpen(c.owner, c.name)}
+                  onRebuild={() => {
+                    setRepo(`${c.owner}/${c.name}`)
+                    void submit(`https://github.com/${c.owner}/${c.name}`)
+                    toTop()
+                  }}
+                  onForget={() => {
+                    forgetCity(c.owner, c.name)
+                    setMine(listCities())
+                  }}
+                />
+              ))}
+            </ul>
+          </section>
+        )}
+
+        {/* Featured: a short curated set, so there is always something to open. */}
         {gallery.length > 0 && (
           <section className="mx-auto max-w-6xl px-6 pt-20 pb-8">
             <div className="hairline flex items-end justify-between border-b pb-3">
-              <h2 className="font-display text-[26px] uppercase">Recently built</h2>
-              <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">(07) {gallery.length} cities</span>
+              <h2 className="font-display text-[26px] uppercase">Featured</h2>
+              <span className="text-ivory/45 font-mono text-xs tracking-[0.22em] uppercase">({mine.length > 0 ? '08' : '07'}) {gallery.length} cities</span>
             </div>
             <ul className="divide-ivory/10 divide-y">
               {gallery.map((g) => (
@@ -255,6 +291,69 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
       </div>
     </div>
   )
+}
+
+/** A city of yours: when you last opened it, how far the repository has moved since, and the way back. */
+function MyCityRow({ city, onOpen, onRebuild, onForget }: { city: MyCity; onOpen: () => void; onRebuild: () => void; onForget: () => void }) {
+  const [status, setStatus] = useState<{ behind: number | null; building: boolean; builtAt?: number } | null | 'gone'>(null)
+  useEffect(() => {
+    let live = true
+    fetchRepo(city.owner, city.name).then(
+      (r) => live && setStatus(r ? { behind: r.latest?.behind ?? null, building: !!r.job, builtAt: r.built?.analyzed_at } : 'gone'),
+      () => live && setStatus(null),
+    )
+    return () => {
+      live = false
+    }
+  }, [city.owner, city.name])
+  const fresh = status && status !== 'gone' ? status : null
+  return (
+    <li className="group grid grid-cols-[1fr_auto] items-center gap-4 py-4 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto]">
+      <button onClick={onOpen} className="min-w-0 text-left">
+        <div className="group-hover:text-amber truncate font-mono text-sm transition">
+          {city.owner}/<span className="font-medium">{city.name}</span>
+        </div>
+        <div className="text-ivory/45 mt-0.5 font-mono text-xs">
+          opened {ago(city.at)}
+          {fresh?.builtAt && <> · built {ago(fresh.builtAt)}</>}
+          {fresh?.building && <span className="text-amber"> · building now</span>}
+          {!fresh?.building && fresh?.behind != null && fresh.behind > 0 && (
+            <span className="text-amber">
+              {' '}
+              · {fresh.behind} commit{fresh.behind === 1 ? '' : 's'} behind
+            </span>
+          )}
+          {fresh?.behind === 0 && <span className="text-ivory/35"> · up to date</span>}
+          {status === 'gone' && <span className="text-fire"> · no longer available</span>}
+        </div>
+      </button>
+      <img src={`/badge/${city.owner}/${city.name}.svg?bare=1`} alt="" className="hidden h-6 w-full object-contain object-left opacity-70 transition group-hover:opacity-100 sm:block" loading="lazy" />
+      <span className="flex items-center gap-4 font-mono text-xs">
+        {!fresh?.building && fresh?.behind != null && fresh.behind > 0 && (
+          <button onClick={onRebuild} className="lnk text-amber">
+            rebuild
+          </button>
+        )}
+        <button onClick={onOpen} className="text-ivory/40 hover:text-amber">
+          open →
+        </button>
+        <button onClick={onForget} className="text-ivory/25 hover:text-ivory" title="forget this city" aria-label="forget">
+          ×
+        </button>
+      </span>
+    </li>
+  )
+}
+
+/** Seconds since a build started, ticking. */
+function Elapsed({ since }: { since: number }) {
+  const [, tick] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => tick((n) => n + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const s = Math.max(0, Math.round((Date.now() - since) / 1000))
+  return <span className="tabular-nums">{s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`} elapsed</span>
 }
 
 /** One line per stage, the most recent, so a long clone does not scroll the log with percentages. */

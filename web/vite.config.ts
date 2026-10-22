@@ -23,6 +23,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: 'http://localhost:8787', ws: true },
       '^/badge/': 'http://localhost:8787',
+      '^/og/': 'http://localhost:8787',
       // Anchored: a bare "/s" prefix would also swallow /src/*.
       '^/s/[A-Za-z0-9]+$': 'http://localhost:8787',
     },

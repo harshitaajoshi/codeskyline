@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { useStore } from '../store'
 import { MODES, FIRE, ownerPalette, type ColorMode } from '../city/colors'
 import { formatISO, formatNum, githubFileUrl } from '../city/scales'
 import type { City } from '../city/types'
-import { createShare } from '../city/api'
+import { createShare, fetchRepo, requestAnalysis, subscribeJob, type JobState } from '../city/api'
 import { Timeline } from './Timeline'
 import { Tour, shouldShowTour } from './Tour'
 import { THEMES, THEME_IDS } from '../scene/themes'
@@ -18,20 +18,36 @@ import { Wordmark } from './Wordmark'
  * Findings (or the inspector) on the right, the timeline along the bottom.
  * No cards: hairline rules, index numbers, a serif for what matters.
  */
-export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
+export function Hud({ city, onOpenFile, onHome, onOpen }: { city: City; onOpenFile: () => void; onHome: () => void; onOpen?: (owner: string, name: string, sha?: string) => void }) {
   const walking = useStore((s) => s.walking)
   const filming = useStore((s) => s.filming)
   const setTourStep = useStore((s) => s.setTourStep)
+  const [keys, setKeys] = useState(false)
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && useStore.getState().filming) {
-        useStore.getState().setFilming(false)
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return
+      const s = useStore.getState()
+      if (e.key === 'Escape') {
+        // One thing at a time, outermost first.
+        if (s.filming) s.setFilming(false)
+        else if (s.tourStep != null) s.setTourStep(null)
+        else if (s.selected != null) s.select(null)
+        else if (s.simulateAuthor != null) s.setSimulateAuthor(null)
+        else setKeys(false)
+        return
+      }
+      if (e.key === '?') {
+        setKeys((v) => !v)
+        return
+      }
+      if (e.key === 'd' && !e.metaKey && !e.ctrlKey) {
+        s.setDay(!s.day)
         return
       }
 
-      if (e.code !== 'Space' || (e.target as HTMLElement)?.tagName === 'INPUT') return
-      const s = useStore.getState()
+      if (e.code !== 'Space') return
       if (s.walking) return
       e.preventDefault()
       s.setPlaying(!s.playing)
@@ -51,7 +67,8 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
   return (
     <div className="text-ivory">
       <div className="scrim-top pointer-events-none absolute inset-x-0 top-0 h-32" />
-      <TopLine city={city} onOpenFile={onOpenFile} onHome={onHome} />
+      <TopLine city={city} onOpenFile={onOpenFile} onHome={onHome} onOpen={onOpen} />
+      {keys && <Keys onClose={() => setKeys(false)} />}
       <Lens city={city} />
       <Insights city={city} />
       <Tooltip city={city} />
@@ -65,7 +82,7 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
 }
 
 /** The top line: wordmark, repo, the numbers in a serif, actions as words. */
-function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
+function TopLine({ city, onOpenFile, onHome, onOpen }: { city: City; onOpenFile: () => void; onHome: () => void; onOpen?: (owner: string, name: string, sha?: string) => void }) {
   const setWalking = useStore((s) => s.setWalking)
   const setTourStep = useStore((s) => s.setTourStep)
   const setFilming = useStore((s) => s.setFilming)
@@ -108,24 +125,112 @@ function TopLine({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => v
               <Glyph.external width={11} height={11} />
             </a>
           )}
+          {onOpen && location.pathname.startsWith('/r/') && <Freshness city={city} onOpen={onOpen} />}
         </div>
         <dl className="hidden items-end gap-9 md:flex">
-          <Num v={compact(city.stats.files)} l="files" />
-          <Num v={compact(city.stats.lines)} l="lines" />
-          <Num v={compact(city.repo.commits)} l="commits" />
-          <Num v={String(city.authors.length)} l="authors" />
-          {city.stats.burning > 0 && <Num v={String(city.stats.burning)} l="on fire" fire />}
+          <Num v={compact(city.stats.files)} l="files" title="Live files at the latest commit; generated and vendored code is counted but hidden by default." />
+          <Num v={compact(city.stats.lines)} l="lines" title="Lines of code across those files, as counted by scc." />
+          <Num v={compact(city.repo.commits)} l="commits" title="Commits on the default branch's first-parent history." />
+          <Num v={String(city.authors.length)} l="authors" title="Distinct authors in that history." />
+          {city.stats.burning > 0 && <Num v={String(city.stats.burning)} l="on fire" fire title="Hotspots: files that change often and are complex, the top of churn times complexity. Three levels of fire." />}
         </dl>
       </div>
     </div>
   )
 }
 
-function Num({ v, l, fire }: { v: string; l: string; fire?: boolean }) {
+function Num({ v, l, fire, title }: { v: string; l: string; fire?: boolean; title?: string }) {
   return (
-    <div className="flex items-baseline gap-2">
+    <div className="pointer-events-auto flex cursor-help items-baseline gap-2" title={title}>
       <dd className={`font-display text-[20px] leading-none tabular-nums ${fire ? 'text-fire' : ''}`}>{v}</dd>
       <dt className="idx">{l}</dt>
+    </div>
+  )
+}
+
+/**
+ * Is this city still the repository? Asks once, then says "N commits behind"
+ * with a rebuild that runs right here and opens the new city when it lands.
+ */
+function Freshness({ city, onOpen }: { city: City; onOpen: (owner: string, name: string, sha?: string) => void }) {
+  const [owner, name] = city.repo.name.split('/') as [string, string]
+  const [behind, setBehind] = useState<number | null>(null)
+  const [job, setJob] = useState<JobState | null>(null)
+  useEffect(() => {
+    let live = true
+    fetchRepo(owner, name).then((r) => {
+      if (!live || !r) return
+      if (r.job) setJob(r.job)
+      else if (r.latest?.behind != null && r.built?.sha === city.repo.head) setBehind(r.latest.behind)
+      else if (r.latest && r.latest.sha !== city.repo.head) setBehind(r.latest.behind ?? 1)
+    }, () => {})
+    return () => {
+      live = false
+    }
+  }, [owner, name, city.repo.head])
+  useEffect(() => {
+    if (!job || job.status === 'ready' || job.status === 'error') return
+    return subscribeJob(job.key, setJob)
+  }, [job?.key, job?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (job?.status !== 'ready') return
+    const m = /^([^/]+)\/([^@]+)@([0-9a-f]+)/.exec(job.key)
+    if (m) onOpen(m[1]!, m[2]!, m[3])
+  }, [job?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+  const rebuild = async () => {
+    try {
+      const r = await requestAnalysis(`https://github.com/${owner}/${name}`)
+      if (r.status === 'ready') onOpen(r.owner, r.name, r.sha)
+      else setJob({ key: r.key, status: r.status, stage: r.stage ?? 'queued', detail: r.detail ?? '', log: r.log ?? [] })
+    } catch {
+      /* the landing page shows the full error; here we stay quiet */
+    }
+  }
+  if (job && job.status !== 'ready') {
+    return (
+      <span className="text-amber ml-3 font-mono text-[11px]">
+        {job.status === 'error' ? 'rebuild failed' : `rebuilding: ${job.detail || job.stage}`}
+      </span>
+    )
+  }
+  if (behind == null || behind <= 0) return null
+  return (
+    <span className="ml-3 font-mono text-[11px]">
+      <span className="text-ivory/45">
+        {behind} commit{behind === 1 ? '' : 's'} behind
+      </span>
+      <button onClick={() => void rebuild()} className="lnk text-amber ml-2">
+        rebuild
+      </button>
+    </span>
+  )
+}
+
+/** The keys, on `?`. */
+function Keys({ onClose }: { onClose: () => void }) {
+  const rows: [string, string][] = [
+    ['drag', 'orbit'],
+    ['scroll', 'zoom'],
+    ['space', 'play and pause the history'],
+    ['⌘ K', 'find a file'],
+    ['click', 'inspect a building'],
+    ['esc', 'close, deselect, stop'],
+    ['d', 'daylight'],
+    ['?', 'this list'],
+  ]
+  return (
+    <div className="pointer-events-auto absolute inset-0 z-30 flex items-center justify-center bg-black/55" onClick={onClose}>
+      <div className="region w-[22rem] px-6 pt-4 pb-5" onClick={(e) => e.stopPropagation()}>
+        <div className="label">Keys</div>
+        <dl className="mt-3 grid grid-cols-[6rem_1fr] gap-y-2 font-mono text-[12px]">
+          {rows.map(([k, v]) => (
+            <Fragment key={k}>
+              <dt className="text-amber">{k}</dt>
+              <dd className="text-ivory/75">{v}</dd>
+            </Fragment>
+          ))}
+        </dl>
+      </div>
     </div>
   )
 }

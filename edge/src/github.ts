@@ -54,6 +54,17 @@ export async function resolveRepo(owner: string, name: string, token?: string): 
   }
 }
 
+/** How many commits `head` is ahead of `base` on GitHub, or null if unknown. */
+export async function commitsBetween(owner: string, name: string, base: string, head: string, token?: string): Promise<number | null> {
+  if (base === head) return 0
+  const headers: Record<string, string> = { 'User-Agent': UA, Accept: 'application/vnd.github+json' }
+  if (token) headers.Authorization = `Bearer ${token}`
+  const r = await fetch(`https://api.github.com/repos/${owner}/${name}/compare/${base}...${head}?per_page=1`, { headers })
+  if (!r.ok) return null
+  const j = (await r.json()) as { ahead_by?: number }
+  return typeof j.ahead_by === 'number' ? j.ahead_by : null
+}
+
 const repoUrl = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([\w.-]+)\/([\w.-]+?)(?:\.git)?\/?(?:[?#].*)?$/i
 const bare = /^([\w.-]+)\/([\w.-]+)$/
 

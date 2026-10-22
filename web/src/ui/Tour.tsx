@@ -45,15 +45,18 @@ const STEPS: Step[] = [
   },
   {
     title: 'Start from the insights',
-    body: 'The panel on the right says what the history found, in plain sentences. Each one is a button that shows it. Drag to orbit, scroll to zoom, ⌘K to find a file, Walk to stroll the streets.',
+    body: 'The panel on the right says what the history found, in plain sentences. Each one is a button that shows it. Drag to orbit, scroll to zoom, ⌘K to find a file, Walk to stroll the streets. Press ? for all the keys.',
     place: 'right-[23rem] top-[7rem]',
   },
 ]
 
-/** The tour opens with every city; `?tour=0` suppresses it, and skipping is one click. */
+/** The tour opens the first time this browser sees a city; `?tour=0` suppresses it, "tour" replays it. */
 export function shouldShowTour(): boolean {
-  void KEY
-  return true
+  try {
+    return localStorage.getItem(KEY) !== '1'
+  } catch {
+    return true
+  }
 }
 
 export function Tour({ city: _city }: { city: City }) {

@@ -60,7 +60,12 @@ Each one is a button that shows it.
 - **Postcard and film.** Save a 2x picture of the city, or run a forty second
   flythrough over its findings.
 - **Shareable.** Every view is a URL (`/r/owner/repo?t=0.4&mode=owners&f=12`),
-  short links, and a README badge that is a silhouette of the repo's own skyline.
+  short links that unfurl with a picture of the skyline on Slack, X and
+  LinkedIn, and a README badge that is a silhouette of the repo's own skyline
+  and says how fresh the city is.
+- **Yours stays yours.** The front page lists the cities this browser built,
+  with how far each has fallen behind its repository and a rebuild; nobody
+  else sees them. A short curated set is featured for first-time visitors.
 
 ![The landing page: the headline "every repository is a city" over the live express city](docs/images/landing.png)
 

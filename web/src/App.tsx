@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from './store'
 import { loadFile, loadSample } from './city/load'
-import { fetchCity } from './city/api'
+import { etaText, fetchCity, fetchRepo, requestAnalysis, subscribeJob, type JobState } from './city/api'
+import { rememberCity } from './city/cities'
+import { Wordmark } from './ui/Wordmark'
 import { Scene } from './scene/Scene'
 import { Hud } from './ui/Hud'
 import { Home } from './ui/Home'
@@ -28,6 +30,8 @@ export function App() {
   const setError = useStore((s) => s.setError)
   const [route, setRoute] = useState<Route>(parseRoute)
   const [dragging, setDragging] = useState(false)
+  /** When a /r/ route has no city yet: what we know about the repository. */
+  const [pending, setPending] = useState<{ owner: string; name: string; job: JobState | null; sizeKB?: number; exists: boolean } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -45,15 +49,54 @@ export function App() {
     if (route.kind === 'home') return
     const params = new URLSearchParams(location.search)
     setLoading()
+    setPending(null)
     const load = route.kind === 'sample' ? loadSample(route.id) : fetchCity(route.owner, route.name, route.sha)
     load.then(
       (c) => {
         setCity(c)
+        if (route.kind === 'repo') rememberCity(route.owner, route.name, c.repo.head)
         applyUrlState(params, c.timeline.keyframes.length)
       },
-      (e) => setError(String(e instanceof Error ? e.message : e)),
+      async (e) => {
+        const msg = String(e instanceof Error ? e.message : e)
+        if (route.kind !== 'repo' || msg !== 'not analyzed yet') return setError(msg)
+        // No city for this repository yet. Is one being built, or can we offer to?
+        try {
+          const r = await fetchRepo(route.owner, route.name)
+          setPending({ owner: route.owner, name: route.name, job: r?.job ?? null, exists: true })
+          setError(r?.job ? 'building' : 'not built')
+        } catch (err) {
+          const m = String(err instanceof Error ? err.message : err)
+          setPending({ owner: route.owner, name: route.name, job: null, exists: false })
+          setError(/not found/i.test(m) ? 'no such repository' : m)
+        }
+      },
     )
   }, [route, setCity, setLoading, setError])
+
+  // A build under way for this route: follow it and open the city when it lands.
+  useEffect(() => {
+    const job = pending?.job
+    if (!job || job.status === 'ready' || job.status === 'error') return
+    return subscribeJob(job.key, (s) => setPending((p) => (p ? { ...p, job: s } : p)))
+  }, [pending?.job?.key, pending?.job?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const job = pending?.job
+    if (job?.status === 'ready') setRoute(parseRoute())
+    if (job?.status === 'error') setError(job.error ?? 'analysis failed')
+  }, [pending?.job?.status]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const build = useCallback(async () => {
+    if (!pending) return
+    try {
+      const r = await requestAnalysis(`https://github.com/${pending.owner}/${pending.name}`)
+      if (r.status === 'ready') return setRoute(parseRoute())
+      setPending({ ...pending, job: { key: r.key, status: r.status, stage: r.stage ?? 'queued', detail: r.detail ?? '', log: r.log ?? [] }, sizeKB: r.sizeKB })
+      setError('building')
+    } catch (e) {
+      setError(String(e instanceof Error ? e.message : e))
+    }
+  }, [pending])
 
   const openFiles = useCallback(
     async (files: FileList | null) => {
@@ -93,23 +136,17 @@ export function App() {
       {showCity && (
         <ErrorBoundary onReset={() => navigate('/')}>
           <Scene city={city} />
-          <Hud city={city} onOpenFile={() => fileInput.current?.click()} onHome={() => navigate('/')} />
+          <Hud city={city} onOpenFile={() => fileInput.current?.click()} onHome={() => navigate('/')} onOpen={onOpen} />
         </ErrorBoundary>
       )}
       {route.kind === 'home' && <Home onOpen={onOpen} onSample={(id) => navigate(`/?sample=${id}`)} />}
       <input ref={fileInput} type="file" accept=".json" className="hidden" onChange={(e) => void openFiles(e.target.files)} />
 
-      {route.kind !== 'home' && status === 'loading' && <Center>Building the city…</Center>}
+      {route.kind !== 'home' && status === 'loading' && <Center>Loading the city</Center>}
       {route.kind !== 'home' && status === 'error' && (
-        <Center>
-          <div className="text-center">
-            <div>⚠️ {error}</div>
-            <button className="text-accent mt-3 text-sm hover:underline" onClick={() => navigate('/')}>
-              ← back home
-            </button>
-          </div>
-        </Center>
+        <Problem error={error ?? ''} pending={pending} onHome={() => navigate('/')} onBuild={() => void build()} />
       )}
+      <SmallScreen />
       {dragging && (
         <div className="border-accent/60 pointer-events-none absolute inset-4 flex items-center justify-center rounded-2xl border-2 border-dashed bg-black/40 text-lg">
           Drop a .city.json to render it
@@ -134,6 +171,83 @@ function applyUrlState(params: URLSearchParams, keyframes: number) {
   if (params.get('day') === '1') s.setDay(true)
   const theme = params.get('theme')
   if (isThemeId(theme)) s.setTheme(theme)
+}
+
+const PROBLEMS: Record<string, { title: string; body: string }> = {
+  'not built': { title: 'Not built yet', body: 'There is no city for this repository. Build one from its history; it takes about a minute.' },
+  'no such repository': { title: 'No such repository', body: 'GitHub has no public repository at that address. Private repositories cannot be analyzed.' },
+  building: { title: 'Building the city', body: 'The analyzer is reading the history. This page opens the city when it lands.' },
+}
+
+/** What stands between the visitor and a city, in the site's voice, with the way forward. */
+function Problem({ error, pending, onHome, onBuild }: { error: string; pending: { owner: string; name: string; job: JobState | null; sizeKB?: number } | null; onHome: () => void; onBuild: () => void }) {
+  const known = PROBLEMS[error]
+  const title = known?.title ?? (/budget/i.test(error) ? 'Out of budget this month' : /slow down|rate/i.test(error) ? 'Too many requests' : /caps at|too big|GB/i.test(error) ? 'Too big for the hosted analyzer' : 'Could not open this city')
+  const body = known?.body ?? error
+  const job = pending?.job
+  return (
+    <div className="text-ivory absolute inset-0 flex items-center justify-center px-6">
+      <div className="region w-[26rem] max-w-full px-6 pt-4 pb-5">
+        <div className="pointer-events-auto mb-5">
+          <Wordmark size={17} onClick={onHome} />
+        </div>
+        <div className="label">{pending ? `${pending.owner}/${pending.name}` : 'city'}</div>
+        <div className="font-display mt-2 text-[22px] leading-tight">{title}</div>
+        <p className="text-ivory/65 mt-2 text-[13px] leading-relaxed">{body}</p>
+        {job && job.status !== 'error' && (
+          <div className="mt-4 font-mono text-[11px]">
+            <div className="flex items-center gap-2">
+              <span className="bg-amber caret inline-block h-2 w-2 rounded-full" />
+              <span>{job.detail || job.stage}</span>
+            </div>
+            <div className="text-ivory/40 mt-1">usually {etaText(pending?.sizeKB)} for a repository this size</div>
+          </div>
+        )}
+        <div className="mt-5 flex items-center gap-6 font-mono text-[10.5px] tracking-[0.14em] uppercase">
+          {error === 'not built' && (
+            <button className="lnk text-amber" onClick={onBuild}>
+              build it
+            </button>
+          )}
+          <button className="lnk text-ivory/55 hover:text-ivory" onClick={onHome}>
+            home
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** Phones get a card, not a broken canvas: the city wants a desktop and a GPU. */
+function SmallScreen() {
+  const [small, setSmall] = useState(() => typeof window !== 'undefined' && (window.innerWidth < 720 || !hasWebGL2()))
+  useEffect(() => {
+    const onResize = () => setSmall(window.innerWidth < 720 || !hasWebGL2())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  if (!small) return null
+  return (
+    <div className="bg-bg text-ivory absolute inset-0 z-50 flex items-center justify-center px-6">
+      <div className="max-w-sm">
+        <Wordmark size={22} />
+        <div className="font-display mt-6 text-[28px] leading-tight">Best on a desktop</div>
+        <p className="text-ivory/65 mt-3 text-[14px] leading-relaxed">
+          A city is fifty thousand buildings on a GPU with a keyboard to fly around it. Open this link on a computer, or read the repository's skyline below.
+        </p>
+        <img src={`/og${location.pathname.replace(/^\/r/, '')}.png`} alt="" className="mt-6 w-full" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+      </div>
+    </div>
+  )
+}
+
+function hasWebGL2(): boolean {
+  try {
+    const c = document.createElement('canvas')
+    return !!c.getContext('webgl2')
+  } catch {
+    return false
+  }
 }
 
 function Center({ children }: { children: React.ReactNode }) {
