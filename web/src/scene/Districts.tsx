@@ -23,12 +23,8 @@ export function sidewalkWidth(depth: number) {
 export function Districts({ city }: { city: City }) {
   const plates = useRef<THREE.InstancedMesh>(null!)
   const walks = useRef<THREE.InstancedMesh>(null!)
-  const edges = useRef<THREE.InstancedMesh>(null!)
   const plateMat = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 0.9, metalness: 0.05 }), [])
   const walkMat = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 0.95, metalness: 0 }), [])
-  // Top-level districts get a lit kerb line, so the neighbourhoods read at a glance.
-  const edgeMat = useMemo(() => new THREE.MeshBasicMaterial({ color: new THREE.Color(1.6, 1.0, 0.55), toneMapped: false }), [])
-  const topLevel = useMemo(() => city.dirs.filter((d) => d.depth === 1 && d.files >= 3), [city])
 
   useEffect(() => {
     const mat = new THREE.Matrix4()
@@ -59,40 +55,13 @@ export function Districts({ city }: { city: City }) {
       if (m.instanceColor) m.instanceColor.needsUpdate = true
       m.computeBoundingSphere()
     }
-    // Four thin strips along the outer edge of each top-level sidewalk.
-    let k = 0
-    const t = 0.07
-    topLevel.forEach((d) => {
-      const sw = sidewalkWidth(1)
-      const y = 0.08 * 1 + 0.062
-      const x0 = d.x - sw
-      const z0 = d.z - sw
-      const w = d.w + sw * 2
-      const dd = d.d + sw * 2
-      const strips: [number, number, number, number][] = [
-        [x0 + w / 2, z0 + t / 2, w, t],
-        [x0 + w / 2, z0 + dd - t / 2, w, t],
-        [x0 + t / 2, z0 + dd / 2, t, dd],
-        [x0 + w - t / 2, z0 + dd / 2, t, dd],
-      ]
-      for (const [cx, cz, sx, sz] of strips) {
-        pos.set(cx, y, cz)
-        scl.set(sx, 0.012, sz)
-        mat.compose(pos, q, scl)
-        edges.current.setMatrixAt(k++, mat)
-      }
-    })
-    edges.current.count = k
-    edges.current.instanceMatrix.needsUpdate = true
-    edges.current.computeBoundingSphere()
-  }, [city, topLevel])
+  }, [city])
 
   const n = Math.max(1, city.dirs.length)
   return (
     <>
       <instancedMesh ref={walks} args={[PLATE, walkMat, n]} receiveShadow />
       <instancedMesh ref={plates} args={[PLATE, plateMat, n]} receiveShadow />
-      <instancedMesh ref={edges} args={[PLATE, edgeMat, Math.max(1, topLevel.length * 4)]} raycast={() => null} />
     </>
   )
 }

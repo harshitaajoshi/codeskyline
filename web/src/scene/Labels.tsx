@@ -6,10 +6,10 @@ import { cityBounds } from '../city/scales'
 import type { City, Dir } from '../city/types'
 
 /**
- * District signs. Each top-level district (and the larger second-level
- * ones) gets a sign at its near corner: the name on a thin post, facing the
- * camera, kept at a readable size on screen whatever the zoom. Deeper
- * districts only show their sign when the camera is close.
+ * District names, like labels on a map: quiet tracked capitals at each
+ * top-level district's near corner, facing the camera and kept at a
+ * readable size on screen whatever the zoom. Deeper districts only show
+ * their name when the camera is close.
  */
 export function Labels({ city }: { city: City }) {
   const signs = useMemo(() => pickSigns(city), [city])
@@ -29,7 +29,7 @@ export function Labels({ city }: { city: City }) {
       g.visible = visible
       if (!visible) continue
       // Constant size on screen: scale with distance, within limits.
-      const k = s.depth === 1 ? 0.021 : s.depth === 2 ? 0.013 : 0.011
+      const k = s.depth === 1 ? 0.019 : s.depth === 2 ? 0.013 : 0.011
       const sc = Math.min(size * 0.06, Math.max(0.8, dist * k))
       g.scale.setScalar(sc)
       g.quaternion.copy(camera.quaternion)
@@ -46,21 +46,15 @@ export function Labels({ city }: { city: City }) {
             groups.current[i] = g
           }}
         >
-          {/* The post: a thin line from the ground up to the name; top-level only. */}
-          {s.depth === 1 && (
-            <mesh position={[0, 0.6, 0]}>
-              <planeGeometry args={[0.03, 1.2]} />
-              <meshBasicMaterial color="#e7633b" toneMapped={false} transparent opacity={0.9} depthTest={false} />
-            </mesh>
-          )}
           <Text
-            position={[0, s.depth === 1 ? 1.35 : 0.5, 0]}
-            fontSize={s.depth === 1 ? 0.62 : 0.5}
+            position={[0, 0.35, 0]}
+            fontSize={s.depth === 1 ? 0.5 : 0.42}
             color="#f1efe8"
-            outlineWidth={0.07}
+            fillOpacity={s.depth === 1 ? 0.82 : 0.62}
+            outlineWidth={0.035}
             outlineColor="#0c0c0c"
-            outlineOpacity={0.9}
-            letterSpacing={0.06}
+            outlineOpacity={0.55}
+            letterSpacing={s.depth === 1 ? 0.16 : 0.08}
             anchorX="center"
             anchorY="bottom"
             whiteSpace="nowrap"
