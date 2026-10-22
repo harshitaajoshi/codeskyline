@@ -320,21 +320,30 @@ function Camera({ city }: { city: City }) {
 
   useEffect(() => {
     if (flyTo == null) return
+    if (flyTo < 0) {
+      // The wide shot, same as the one the city opens on.
+      setTimeout(() => {
+        void ref.current?.setLookAt(cx + size * 0.55, size * 0.45, cz + size * 0.8, cx, size * 0.04, cz, true)
+        consume()
+      }, 50)
+      return
+    }
     const f = city.files[flyTo]
     if (!f) return
     const s = useStore.getState()
     const h = height(linesAt(timelineFor(city), flyTo, s.k), heightScale, city.stats.maxLines)
     const tx = f.x + f.w / 2
     const tz = f.z + f.d / 2
-    // Far enough back that the whole building and its name tag fit.
-    const dist = Math.max(16, h * 2.4, Math.max(f.w, f.d) * 6)
+    // Far enough back that the whole building and its name tag fit; the
+    // tour hangs back further so the neighbourhood is in the frame.
+    const dist = Math.max(16, h * 2.4, Math.max(f.w, f.d) * 6) * (s.tourStep != null ? 2.2 : 1)
     // A beat after mount so it runs after the initial placement above. No
     // cleanup: consuming flyTo re-runs this effect and must not cancel it.
     setTimeout(() => {
       void ref.current?.setLookAt(tx + dist * 0.75, h * 0.6 + dist * 0.55, tz + dist * 0.9, tx, h * 0.45, tz, true)
       consume()
     }, 200)
-  }, [flyTo, city, heightScale, consume])
+  }, [flyTo, city, heightScale, consume, cx, cz, size])
 
   // While walking, the controls must not exist at all: even disabled, they
   // write the camera transform every frame and would fight the walk.

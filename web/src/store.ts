@@ -63,6 +63,8 @@ interface State {
   hover: (id: number | null) => void
   select: (id: number | null, fly?: boolean) => void
   consumeFlyTo: () => void
+  /** Glide back to the wide view of the whole city. */
+  flyWide: () => void
   setPointer: (x: number, y: number) => void
   setT: (t: number) => void
   setPlaying: (p: boolean) => void
@@ -140,6 +142,7 @@ export const useStore = create<State>((set, get) => ({
   hover: (hovered) => set((s) => (s.hovered === hovered ? s : { hovered })),
   select: (selected, fly = false) => set({ selected, flyTo: fly ? selected : null }),
   consumeFlyTo: () => set({ flyTo: null }),
+  flyWide: () => set({ flyTo: -1 }),
   setPointer: (x, y) => set({ pointer: { x, y } }),
   setT: (t) => {
     if (!Number.isFinite(t)) return
