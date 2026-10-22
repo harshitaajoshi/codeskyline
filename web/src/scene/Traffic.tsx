@@ -8,12 +8,11 @@ import type { City } from '../city/types'
 import { sidewalkWidth, streetWidth } from './Districts'
 import { furnishedPlates } from './Streets'
 import { atmosphere } from './atmosphere'
+import { THEMES } from './themes'
 
 const MAX_CARS = 1400
 const RECENT = 2 * 365 * 86400
 
-// Body colors: mostly dark and silver, the odd red or white.
-const PAINT = ['#1d1f24', '#2a2d33', '#8d9097', '#c9cbd0', '#5a1d1f', '#1c2a44', '#3b3d42', '#e8e6e0'].map((c) => new THREE.Color(c))
 
 /**
  * One car: body, cabin, two headlights and two tail lights, merged into a
@@ -86,6 +85,8 @@ interface Car {
 export function Traffic({ city, timeline }: { city: City; timeline: TimelineData }) {
   const mesh = useRef<THREE.InstancedMesh>(null!)
   const k = useStore((s) => s.k)
+  const theme = useStore((s) => s.theme)
+  const paint = useMemo(() => THEMES[theme].car.map((c) => new THREE.Color(c)), [theme])
   const geometry = useMemo(() => carGeometry(), [])
   const night = useMemo(() => ({ value: 1 }), [])
   const material = useMemo(() => {
@@ -124,10 +125,10 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
 
   useEffect(() => {
     const m = mesh.current
-    cars.forEach((_, i) => m.setColorAt(i, PAINT[(i * 7) % PAINT.length]!))
+    cars.forEach((_, i) => m.setColorAt(i, paint[(i * 7) % paint.length]!))
     m.count = cars.length
     if (m.instanceColor) m.instanceColor.needsUpdate = true
-  }, [cars])
+  }, [cars, paint])
 
   const tmp = useMemo(() => ({ mat: new THREE.Matrix4(), pos: new THREE.Vector3(), q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), one: new THREE.Vector3(1, 1, 1), away: new THREE.Vector3(0, -1e4, 0) }), [])
 

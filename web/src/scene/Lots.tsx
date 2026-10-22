@@ -3,9 +3,9 @@ import * as THREE from 'three'
 import { useStore } from '../store'
 import type { TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
+import { THEMES } from './themes'
 
 const SLAB = new THREE.BoxGeometry(1, 1, 1).translate(0, 0.5, 0)
-const BASE = new THREE.Color('#161616')
 const DELETED = new THREE.Color('#6e1f26') // diff lens: a file this change removed
 
 /**
@@ -20,6 +20,8 @@ export function Lots({ city, timeline }: { city: City; timeline: TimelineData })
   const mode = useStore((s) => s.mode)
   const storeK = useStore((s) => s.k)
   const k = storeK
+  const theme = useStore((s) => s.theme)
+  const BASE = useMemo(() => new THREE.Color(THEMES[theme].lot), [theme])
   const material = useMemo(() => new THREE.MeshStandardMaterial({ roughness: 1 }), [])
   const deletedIds = useMemo(() => new Set((city.diff?.files ?? []).filter((d) => d.status === 'deleted').map((d) => d.id)), [city])
 
@@ -47,7 +49,7 @@ export function Lots({ city, timeline }: { city: City; timeline: TimelineData })
     m.instanceMatrix.needsUpdate = true
     if (m.instanceColor) m.instanceColor.needsUpdate = true
     m.computeBoundingSphere()
-  }, [city, timeline, k, hideGenerated, mode, deletedIds])
+  }, [city, timeline, k, hideGenerated, mode, deletedIds, BASE])
 
   return <instancedMesh ref={mesh} args={[SLAB, material, Math.max(1, city.files.length)]} receiveShadow />
 }

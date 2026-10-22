@@ -2,7 +2,8 @@ import { Suspense, useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { CameraControls, MeshReflectorMaterial } from '@react-three/drei'
-import { Bloom, EffectComposer, N8AO, TiltShift2, Vignette } from '@react-three/postprocessing'
+import { Bloom, EffectComposer, N8AO, Noise, TiltShift2, Vignette } from '@react-three/postprocessing'
+import { BlendFunction } from 'postprocessing'
 import type CameraControlsImpl from 'camera-controls'
 import { useStore } from '../store'
 import { BEATS, reducedMotion, storyTargets, useStory } from '../story'
@@ -29,6 +30,7 @@ import { Walk } from './Walk'
 import { Waterfront } from './Waterfront'
 import { patchHeightFog } from './fog'
 import { atmosphere } from './atmosphere'
+import { THEMES, type Theme } from './themes'
 
 patchHeightFog()
 
@@ -56,11 +58,12 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   const timeline = useMemo(() => timelineFor(city), [city])
   const setPointer = useStore((s) => s.setPointer)
   const walking = useStore((s) => s.walking)
+  const T = THEMES[useStore((s) => s.theme)]
   // The extra passes are worth it up to a mid-sized city; beyond that the
   // frame budget goes to the buildings.
   const n = city.files.length
-  const wet = n <= 4000
-  const traffic = n <= 30000
+  const wet = T.wet && n <= 4000
+  const traffic = T.traffic && n <= 30000
   // The sun sits low on the horizon: long shadows, and the sky glows on its side.
   const sun = useMemo(() => new THREE.Vector3(cx + size * 0.85, size * 0.22, cz - size * 0.5), [cx, cz, size])
   const sunDir = useMemo(() => new THREE.Vector3(size * 0.85, size * 0.22, -size * 0.5).normalize(), [size])
@@ -77,12 +80,12 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       onPointerMove={(e) => !hero && setPointer(e.clientX, e.clientY)}
       style={hero ? { pointerEvents: 'none' } : undefined}
     >
-      <color attach="background" args={['#0e1120']} />
-      <fog attach="fog" args={['#1b1e2c', size * 0.6, size * 4]} />
+      <color attach="background" args={[T.dusk.background]} />
+      <fog attach="fog" args={[T.dusk.fog, size * T.fogNear, size * T.fogFar]} />
       {!off('sky') && <Sky radius={size * 6} sun={sunDir} />}
-      {!off('env') && <DuskEnvironment sun={sunDir} />}
-      {!off('daynight') && <DayNight city={city} size={size} sun={sun} />}
-      <hemisphereLight ref={hemi} args={['#5d6f96', '#1c1b1f', 1.6]} />
+      {!off('env') && <DuskEnvironment sun={sunDir} theme={T} />}
+      {!off('daynight') && <DayNight city={city} size={size} sun={sun} theme={T} />}
+      <hemisphereLight ref={hemi} args={[T.dusk.hemiSky, T.dusk.hemiGround, T.dusk.hemi]} />
       {/* A low sun: long shadows across the districts are most of the depth. */}
       <directionalLight
         ref={sunLight}
@@ -100,23 +103,23 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
         shadow-bias={-0.0003}
         shadow-normalBias={0.02}
       />
-      <pointLight position={[cx, size * 0.25, cz]} intensity={size * 1.5} distance={size * 1.6} color="#ffb070" decay={2} />
+      {T.night > 0.5 && <pointLight position={[cx, size * 0.25, cz]} intensity={size * 1.5} distance={size * 1.6} color="#ffb070" decay={2} />}
 
       <mesh rotation-x={-Math.PI / 2} position={[cx, -0.02, cz]} receiveShadow>
         <planeGeometry args={[size * 10, size * 10]} />
-        <meshStandardMaterial color="#14161c" roughness={1} />
+        <meshStandardMaterial color={T.ground} roughness={1} />
       </mesh>
       <DepthTuning size={size} />
       {new URLSearchParams(location.search).get('debug') === '1' && <Diagnostics />}
 
       {!off('districts') && <Districts city={city} />}
-      {!off('streets') && <Streets city={city} />}
-      {!off('water') && <Waterfront city={city} />}
+      {T.furniture && !off('streets') && <Streets city={city} />}
+      {T.water && !off('water') && <Waterfront city={city} />}
       {wet && !off('wet') && <WetStreets city={city} />}
       {traffic && !off('traffic') && <Traffic city={city} timeline={timeline} />}
       {!off('lots') && <Lots city={city} timeline={timeline} />}
       {!off('buildings') && <Buildings city={city} timeline={timeline} interactive={!hero} />}
-      {!off('flames') && <Flames city={city} timeline={timeline} />}
+      {T.flames && !off('flames') && <Flames city={city} timeline={timeline} />}
       {!off('fire') && <FireLights city={city} timeline={timeline} />}
       {!off('cranes') && <Cranes city={city} timeline={timeline} />}
       <Coupling city={city} timeline={timeline} />
@@ -134,10 +137,11 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
 
       {off('composer') ? null : (
       <EffectComposer>
-        {off('ao') ? <></> : <N8AO aoRadius={3} intensity={2.5} distanceFalloff={1} halfRes />}
-        {off('bloom') ? <></> : <Bloom luminanceThreshold={1} mipmapBlur intensity={0.9} radius={0.55} />}
+        {off('ao') || !T.effects.ao ? <></> : <N8AO aoRadius={3} intensity={2.5} distanceFalloff={1} halfRes />}
+        {off('bloom') || !T.effects.bloom ? <></> : <Bloom luminanceThreshold={1} mipmapBlur intensity={0.9} radius={0.55} />}
         {/* Tilt-shift: a focus band across the middle, so the city reads as a model on a table. */}
-        {walking ? <></> : <TiltShift2 blur={hero ? 0.14 : 0.07} taper={hero ? 0.6 : 0.75} start={[0, 0.54]} end={[1, 0.54]} samples={6} />}
+        {walking || !T.effects.tiltShift ? <></> : <TiltShift2 blur={hero ? 0.14 : 0.07} taper={hero ? 0.6 : 0.75} start={[0, 0.54]} end={[1, 0.54]} samples={6} />}
+        {T.effects.grain > 0 ? <Noise premultiply blendFunction={BlendFunction.SCREEN} opacity={T.effects.grain} /> : <></>}
         <Vignette eskil={false} offset={0.25} darkness={0.75} />
       </EffectComposer>
       )}
@@ -154,14 +158,16 @@ const DAY = {
   fog: new THREE.Color('#7f90ab'),
   background: new THREE.Color('#5f8cc8'),
 }
-const DUSK = {
-  sunColor: new THREE.Color('#ffc08a'),
-  sunIntensity: 3.2,
-  skyColor: new THREE.Color('#5d6f96'),
-  groundColor: new THREE.Color('#1c1b1f'),
-  hemiIntensity: 1.6,
-  fog: new THREE.Color('#1b1e2c'),
-  background: new THREE.Color('#0e1120'),
+function duskOf(t: Theme) {
+  return {
+    sunColor: new THREE.Color(t.dusk.sun),
+    sunIntensity: t.dusk.sunIntensity,
+    skyColor: new THREE.Color(t.dusk.hemiSky),
+    groundColor: new THREE.Color(t.dusk.hemiGround),
+    hemiIntensity: t.dusk.hemi,
+    fog: new THREE.Color(t.dusk.fog),
+    background: new THREE.Color(t.dusk.background),
+  }
 }
 
 /**
@@ -170,8 +176,9 @@ const DUSK = {
  * materials (windows, lamps, car lights) and lerps the lights, fog and sky
  * each frame.
  */
-function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Vector3 }) {
+function DayNight({ city, size, sun, theme }: { city: City; size: number; sun: THREE.Vector3; theme: Theme }) {
   const scene = useThree((s) => s.scene)
+  const DUSK = useMemo(() => duskOf(theme), [theme])
   const hemi = useRef<THREE.HemisphereLight | null>(null)
   const dir = useRef<THREE.DirectionalLight | null>(null)
   useEffect(() => {
@@ -180,31 +187,35 @@ function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Ve
   })
   useFrame(() => {
     void city
-    const wantNight = useStore.getState().day ? 0 : 1
+    const day = useStore.getState().day
+    const wantNight = day ? 0 : theme.night
     atmosphere.night += (wantNight - atmosphere.night) * 0.03
     const night = atmosphere.night
+    // How far toward the theme's own look (vs plain daylight). A theme that is
+    // bright by design (paper, blueprint) stays itself unless daylight is asked for.
+    const mixTo = theme.night > 0.5 ? night : day ? 0 : 1
     const rain = atmosphere.rain
     const h = hemi.current
     const d = dir.current
     if (h) {
-      h.color.copy(DAY.skyColor).lerp(DUSK.skyColor, night)
-      h.groundColor.copy(DAY.groundColor).lerp(DUSK.groundColor, night)
-      h.intensity = (DAY.hemiIntensity + (DUSK.hemiIntensity - DAY.hemiIntensity) * night) * (1 - 0.35 * rain)
+      h.color.copy(DAY.skyColor).lerp(DUSK.skyColor, mixTo)
+      h.groundColor.copy(DAY.groundColor).lerp(DUSK.groundColor, mixTo)
+      h.intensity = (DAY.hemiIntensity + (DUSK.hemiIntensity - DAY.hemiIntensity) * mixTo) * (1 - 0.35 * rain)
     }
     if (d) {
-      d.color.copy(DAY.sunColor).lerp(DUSK.sunColor, night)
-      d.intensity = (DAY.sunIntensity + (DUSK.sunIntensity - DAY.sunIntensity) * night) * (1 - 0.6 * rain)
+      d.color.copy(DAY.sunColor).lerp(DUSK.sunColor, mixTo)
+      d.intensity = (DAY.sunIntensity + (DUSK.sunIntensity - DAY.sunIntensity) * mixTo) * (1 - 0.6 * rain)
       // The sun climbs during the day and sits on the horizon at dusk.
       d.position.set(sun.x, sun.y + size * 0.6 * (1 - night), sun.z)
     }
     if (scene.fog instanceof THREE.Fog) {
-      scene.fog.color.copy(DAY.fog).lerp(DUSK.fog, night)
+      scene.fog.color.copy(DAY.fog).lerp(DUSK.fog, mixTo)
       // Clear air by day, haze at dusk.
-      scene.fog.near = size * (2.2 - 1.6 * night) * (1 - 0.5 * rain)
-      scene.fog.far = size * (9 - 5 * night) * (1 - 0.35 * rain)
+      scene.fog.near = size * (2.2 + (theme.fogNear - 2.2) * mixTo) * (1 - 0.5 * rain)
+      scene.fog.far = size * (9 + (theme.fogFar - 9) * mixTo) * (1 - 0.35 * rain)
     }
-    if (scene.background instanceof THREE.Color) scene.background.copy(DAY.background).lerp(DUSK.background, night)
-    scene.environmentIntensity = 0.6 + 0.5 * night
+    if (scene.background instanceof THREE.Color) scene.background.copy(DAY.background).lerp(DUSK.background, mixTo)
+    scene.environmentIntensity = 0.6 + (theme.env - 0.6) * mixTo
   })
   return null
 }
@@ -213,17 +224,17 @@ function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Ve
  * The sky, baked into an environment map so glass and wet asphalt reflect
  * the dusk. Built once per city size from the same shader as the dome.
  */
-function DuskEnvironment({ sun }: { sun: THREE.Vector3 }) {
+function DuskEnvironment({ sun, theme }: { sun: THREE.Vector3; theme: Theme }) {
   const gl = useThree((s) => s.gl)
   const scene = useThree((s) => s.scene)
   useEffect(() => {
     const pmrem = new THREE.PMREMGenerator(gl)
     const env = new THREE.Scene()
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), makeSkyMaterial(sun))
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(50, 32, 16), makeSkyMaterial(sun, theme.sky))
     env.add(dome)
     const tex = pmrem.fromScene(env, 0.04).texture
     scene.environment = tex
-    scene.environmentIntensity = 1.1
+    scene.environmentIntensity = theme.env
     pmrem.dispose()
     dome.geometry.dispose()
     ;(dome.material as THREE.Material).dispose()
@@ -231,7 +242,7 @@ function DuskEnvironment({ sun }: { sun: THREE.Vector3 }) {
       scene.environment = null
       tex.dispose()
     }
-  }, [gl, scene, sun])
+  }, [gl, scene, sun, theme])
   return null
 }
 

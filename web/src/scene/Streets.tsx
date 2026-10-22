@@ -4,6 +4,8 @@ import type { City, Dir } from '../city/types'
 import { useFrame } from '@react-three/fiber'
 import { sidewalkWidth, streetWidth } from './Districts'
 import { atmosphere } from './atmosphere'
+import { useStore } from '../store'
+import { THEMES } from './themes'
 
 const DASH = new THREE.BoxGeometry(0.55, 0.012, 0.06).translate(0, 0.006, 0)
 const POLE = new THREE.BoxGeometry(0.05, 1.7, 0.05).translate(0, 0.85, 0)
@@ -99,14 +101,16 @@ export function LampPosts({ lamps }: { lamps: Placed[] }) {
   const poles = useRef<THREE.InstancedMesh>(null!)
   const heads = useRef<THREE.InstancedMesh>(null!)
   const pools = useRef<THREE.InstancedMesh>(null!)
-  const mats = useMemo(
-    () => ({
+  const theme = useStore((s) => s.theme)
+  const mats = useMemo(() => {
+    const L = THEMES[theme].lamp
+    const glow = new THREE.Color(L.head).multiplyScalar(3.2)
+    return {
       pole: new THREE.MeshStandardMaterial({ color: '#2a2b2e', roughness: 0.6, metalness: 0.4 }),
-      head: new THREE.MeshStandardMaterial({ color: '#f1d9a8', emissive: new THREE.Color(3.2, 2.5, 1.5), toneMapped: false }),
-      pool: new THREE.MeshBasicMaterial({ map: poolTexture(), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
-    }),
-    [],
-  )
+      head: new THREE.MeshStandardMaterial({ color: L.head, emissive: glow, toneMapped: false }),
+      pool: new THREE.MeshBasicMaterial({ map: poolTexture(L.pool), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false }),
+    }
+  }, [theme])
   useEffect(() => {
     const mat = new THREE.Matrix4()
     const q = new THREE.Quaternion()
@@ -224,7 +228,7 @@ function buildStreets(city: City) {
 }
 
 /** A soft radial gradient for the pool of lamplight on the pavement. */
-function poolTexture(): THREE.Texture {
+function poolTexture(rgb: [number, number, number]): THREE.Texture {
   const size = 64
   const data = new Uint8Array(size * size * 4)
   for (let y = 0; y < size; y++) {
@@ -234,9 +238,9 @@ function poolTexture(): THREE.Texture {
       const r = Math.min(1, Math.hypot(dx, dy) * 2)
       const a = Math.pow(1 - r, 2.2)
       const i = (y * size + x) * 4
-      data[i] = 255
-      data[i + 1] = 214
-      data[i + 2] = 160
+      data[i] = rgb[0]
+      data[i + 1] = rgb[1]
+      data[i + 2] = rgb[2]
       data[i + 3] = Math.round(a * 255)
     }
   }

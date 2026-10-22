@@ -6,6 +6,7 @@ import type { City } from '../city/types'
 import { createShare } from '../city/api'
 import { Timeline } from './Timeline'
 import { Tour, shouldShowTour, tourShows } from './Tour'
+import { THEMES, THEME_IDS } from '../scene/themes'
 import { Glyph, MODE_GLYPH } from './glyphs'
 import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from '../scene/Coupling'
@@ -139,6 +140,8 @@ function Lens({ city }: { city: City }) {
   const hideGenerated = useStore((s) => s.hideGenerated)
   const day = useStore((s) => s.day)
   const setDay = useStore((s) => s.setDay)
+  const theme = useStore((s) => s.theme)
+  const setTheme = useStore((s) => s.setTheme)
   const toggleGenerated = useStore((s) => s.toggleGenerated)
   const showCoupling = useStore((s) => s.showCoupling)
   const setShowCoupling = useStore((s) => s.setShowCoupling)
@@ -187,6 +190,16 @@ function Lens({ city }: { city: City }) {
             <input type="checkbox" className="accent-amber" checked={showCoupling} onChange={(e) => setShowCoupling(e.target.checked)} />
           </label>
         )}
+        <label className="flex items-center justify-between" title={THEMES[theme].hint}>
+          look
+          <select className="text-ivory/85 cursor-pointer bg-transparent outline-none" value={theme} onChange={(e) => setTheme(e.target.value as never)}>
+            {THEME_IDS.map((id) => (
+              <option key={id} value={id}>
+                {THEMES[id].label.toLowerCase()}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex cursor-pointer items-center justify-between" title="dusk is the default">
           daylight
           <input type="checkbox" className="accent-amber" checked={day} onChange={(e) => setDay(e.target.checked)} />
@@ -365,6 +378,8 @@ function ShareLink({ city }: { city: City }) {
     const last = Math.max(1, city.timeline.keyframes.length - 1)
     const q = new URLSearchParams(location.search)
     q.set('mode', s.mode)
+    if (s.theme !== 'dusk') q.set('theme', s.theme)
+    else q.delete('theme')
     if (s.t < last - 1e-6) q.set('t', (s.t / last).toFixed(3))
     else q.delete('t')
     if (s.selected != null) q.set('f', String(s.selected))

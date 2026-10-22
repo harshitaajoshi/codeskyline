@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import type { City } from './city/types'
 import type { ColorMode } from './city/colors'
 import type { HeightScale } from './city/scales'
+import type { ThemeId } from './scene/themes'
 
 interface State {
   city: City | null
@@ -47,6 +48,9 @@ interface State {
   /** Daylight instead of the default dusk. */
   day: boolean
   setDay: (v: boolean) => void
+  /** The look of the city. */
+  theme: ThemeId
+  setTheme: (t: ThemeId) => void
   /** The cinematic flythrough is running; the HUD steps aside. */
   filming: boolean
   setFilming: (v: boolean) => void
@@ -108,6 +112,8 @@ export const useStore = create<State>((set, get) => ({
   setPinnedEvent: (pinnedEvent) => set({ pinnedEvent }),
   day: false,
   setDay: (day) => set({ day }),
+  theme: 'dusk',
+  setTheme: (theme) => set({ theme }),
   filming: false,
   setFilming: (filming) => set({ filming }),
   snapshot: 0,

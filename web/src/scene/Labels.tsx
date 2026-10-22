@@ -4,6 +4,8 @@ import { useFrame } from '@react-three/fiber'
 import { Text } from '@react-three/drei'
 import { cityBounds } from '../city/scales'
 import type { City, Dir } from '../city/types'
+import { useStore } from '../store'
+import { THEMES } from './themes'
 
 /**
  * District names, like labels on a map: quiet tracked capitals at each
@@ -13,6 +15,9 @@ import type { City, Dir } from '../city/types'
  */
 export function Labels({ city }: { city: City }) {
   const signs = useMemo(() => pickSigns(city), [city])
+  const theme = useStore((s) => s.theme)
+  const T = THEMES[theme]
+  const dark = T.facade === 3
   const { size } = cityBounds(city)
   const groups = useRef<(THREE.Group | null)[]>([])
   const v = useMemo(() => new THREE.Vector3(), [])
@@ -49,10 +54,10 @@ export function Labels({ city }: { city: City }) {
           <Text
             position={[0, 0.35, 0]}
             fontSize={s.depth === 1 ? 0.5 : 0.42}
-            color="#f1efe8"
+            color={T.labelColor}
             fillOpacity={s.depth === 1 ? 0.82 : 0.62}
-            outlineWidth={0.035}
-            outlineColor="#0c0c0c"
+            outlineWidth={dark ? 0.015 : 0.035}
+            outlineColor={dark ? '#f1efe8' : '#0c0c0c'}
             outlineOpacity={0.55}
             letterSpacing={s.depth === 1 ? 0.16 : 0.08}
             anchorX="center"

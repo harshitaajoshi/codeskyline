@@ -10,6 +10,7 @@ import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from './Coupling'
 import { Glow } from './Glow'
 import { atmosphere } from './atmosphere'
+import { THEMES } from './themes'
 import type { City } from '../city/types'
 
 const LOT_MARGIN = 0.12 // gap between a building and its lot edge
@@ -175,6 +176,7 @@ export function Buildings({
       uWindowBase: { value: 0.2 },
       uTime: { value: 0 },
       uNight: { value: 1 },
+      uStyle: { value: 0 },
     }),
     [timeline, textures, city],
   )
@@ -196,10 +198,12 @@ export function Buildings({
   }, [uniforms])
   useEffect(() => () => material.dispose(), [material])
 
+  const theme = useStore((s) => s.theme)
   useEffect(() => {
     uniforms.uMode.value = GPU_MODE[mode]
     uniforms.uHeightMode.value = HEIGHT_MODE[heightScale]
-  }, [uniforms, mode, heightScale])
+    uniforms.uStyle.value = THEMES[theme].facade
+  }, [uniforms, mode, heightScale, theme])
 
   useFrame(({ clock }) => {
     uniforms.uT.value = useStore.getState().t
@@ -384,6 +388,8 @@ function Crowns({
   const material = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({ color: '#2b2b2d', roughness: 0.7, metalness: 0.3 })
     m.customProgramCacheKey = () => 'csky-crowns'
+    useStore.subscribe((s) => m.color.set(THEMES[s.theme].crown))
+    m.color.set(THEMES[useStore.getState().theme].crown)
     m.onBeforeCompile = (shader) => {
       Object.assign(shader.uniforms, uniforms)
       shader.vertexShader = CROWN_VERT_PARS + shader.vertexShader.replace('#include <begin_vertex>', CROWN_VERT_BEGIN)
@@ -453,6 +459,8 @@ varying vec3 vCskyNrm;   // object-space normal
 varying float vCskySeed;
 varying float vCskyAct;
 varying float vCskyH;
+varying float vCskyFire;
+varying float vCskyHl;
 
 ivec2 cskyTexel(int idx) { return ivec2(idx % uTexW, idx / uTexW); }
 float cskyLines(int idx) { return texelFetch(uLines, cskyTexel(idx), 0).r; }
@@ -503,6 +511,8 @@ vCskyEmissive = vec3(0.0);
   vCskySeed = fract(sin(aFile * 12.9898) * 43758.5453);
   // Windows light up with activity: cumulative churn gives a baseline, the
   // current keyframe's commits add a burst.
+  vCskyFire = (csky_fr < 0.5 ? csky_m0.b : csky_m1.b) * 255.0;
+  vCskyHl = aHighlight;
   vCskyAct = clamp(mix(csky_m0.a, csky_m1.a, csky_fr) * 0.6 + max(csky_m0.r * (1.0 - csky_fr), csky_m1.r * csky_fr) * 255.0 / uActScale, 0.0, 1.0);
 }
 #if defined( USE_INSTANCING_COLOR )
@@ -595,9 +605,13 @@ varying vec3 vCskyNrm;
 varying float vCskySeed;
 varying float vCskyAct;
 varying float vCskyH;
+varying float vCskyFire;
+varying float vCskyHl;
+#define aHighlightF vCskyHl
 uniform float uWindows;
 uniform float uWindowBase;
 uniform float uNight;
+uniform int uStyle;
 float cskyHash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
 `
 
@@ -609,6 +623,36 @@ const FRAG_FACADE = /* glsl */ `
   vec3 n = normalize(vCskyNrm);
   float s1 = fract(vCskySeed * 7.31);
   float s2 = fract(vCskySeed * 3.17);
+  if (uStyle == 2) {
+    // Blueprint: navy paper, white lines at every floor slab and bay, and a lit roof edge.
+    vec3 paper = vec3(0.06, 0.18, 0.42);
+    vec3 ink = vec3(0.9, 0.95, 1.0);
+    float line = 0.0;
+    if (n.y > 0.5) {
+      line = 0.0;
+      paper *= 1.25;
+    } else if (abs(n.y) < 0.5) {
+      float along = abs(n.x) > 0.5 ? vCskyPos.z : vCskyPos.x;
+      float fy = fract(vCskyPos.y / 0.62);
+      float fx = fract(along / 0.5);
+      float slab = 1.0 - (smoothstep(0.0, 0.05, fy) * (1.0 - smoothstep(0.95, 1.0, fy)));
+      float bay = 1.0 - (smoothstep(0.0, 0.05, fx) * (1.0 - smoothstep(0.95, 1.0, fx)));
+      // The drafting lines thin out with distance so a far district reads as a navy mass, not white noise.
+      float far = smoothstep(25.0, 140.0, length(vViewPosition));
+      line = max(slab * 0.75, bay * 0.35) * (1.0 - 0.85 * far);
+      if (vCskyPos.y > vCskyH - 0.07) line = 1.0 - 0.5 * far;
+    }
+    diffuseColor.rgb = mix(paper, ink, line * 0.8);
+    csky_windowGlow = ink * line * 0.18;
+  } else if (uStyle == 3) {
+    // Paper: pastel matte blocks, lighter roofs, no windows.
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.96, 0.95, 0.92), 0.55) * (0.94 + 0.08 * s1);
+    if (n.y > 0.5) diffuseColor.rgb *= 1.06;
+    else if (abs(n.y) < 0.5) {
+      float fy = fract(vCskyPos.y / 0.62);
+      diffuseColor.rgb *= mix(0.9, 1.0, smoothstep(0.0, 0.05, fy));
+    }
+  } else {
   diffuseColor.rgb *= 0.85 + 0.3 * s1;
   if (n.y > 0.5) {
     // Roofs: flat grey membrane, a little lighter than the walls.
@@ -645,6 +689,13 @@ const FRAG_FACADE = /* glsl */ `
         diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.06, 0.08), 0.85);
       }
     }
+  }
+  if (uStyle == 1 && vCskyFire < 0.5 && aHighlightF < 0.5) {
+    // Noir: everything grey except the fires and the selection.
+    float l = dot(diffuseColor.rgb, vec3(0.299, 0.587, 0.114));
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(l), 0.85);
+    csky_windowGlow = vec3(dot(csky_windowGlow, vec3(0.299, 0.587, 0.114)));
+  }
   }
 }
 `

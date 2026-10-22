@@ -3,6 +3,8 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { Stars } from '@react-three/drei'
 import { atmosphere } from './atmosphere'
+import { useStore } from '../store'
+import { THEMES } from './themes'
 
 /** Sky colours at dusk (the default) and in full day; blended by `atmosphere.night`. */
 export const SKY_DUSK = { zenith: '#0b1024', mid: '#1c2546', horizon: '#4a3a40', glow: '#a85e32' }
@@ -35,7 +37,7 @@ void main() {
 }`
 
 /** Dusk sky colors; one place so the environment map matches the dome. */
-export function makeSkyMaterial(sun: THREE.Vector3): THREE.ShaderMaterial {
+export function makeSkyMaterial(sun: THREE.Vector3, sky: typeof SKY_DUSK = SKY_DUSK): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
     vertexShader: VERT,
     fragmentShader: FRAG,
@@ -43,10 +45,10 @@ export function makeSkyMaterial(sun: THREE.Vector3): THREE.ShaderMaterial {
     depthWrite: false,
     fog: false,
     uniforms: {
-      uZenith: { value: new THREE.Color('#0b1024') },
-      uMid: { value: new THREE.Color('#1c2546') },
-      uHorizon: { value: new THREE.Color('#4a3a40') },
-      uGlow: { value: new THREE.Color('#a85e32') },
+      uZenith: { value: new THREE.Color(sky.zenith) },
+      uMid: { value: new THREE.Color(sky.mid) },
+      uHorizon: { value: new THREE.Color(sky.horizon) },
+      uGlow: { value: new THREE.Color(sky.glow) },
       uSun: { value: sun.clone() },
     },
   })
@@ -56,10 +58,12 @@ export function makeSkyMaterial(sun: THREE.Vector3): THREE.ShaderMaterial {
 export function Sky({ radius, sun }: { radius: number; sun: THREE.Vector3 }) {
   const material = useMemo(() => makeSkyMaterial(sun), [sun])
   const stars = useRef<THREE.Group>(null!)
+  const theme = useStore((s) => s.theme)
   const palette = useMemo(() => {
-    const c = (k: keyof typeof SKY_DUSK) => ({ day: new THREE.Color(SKY_DAY[k]), dusk: new THREE.Color(SKY_DUSK[k]) })
+    const sky = THEMES[theme].sky
+    const c = (k: keyof typeof SKY_DUSK) => ({ day: new THREE.Color(SKY_DAY[k]), dusk: new THREE.Color(sky[k]) })
     return { zenith: c('zenith'), mid: c('mid'), horizon: c('horizon'), glow: c('glow') }
-  }, [])
+  }, [theme])
   useFrame(() => {
     const n = atmosphere.night
     for (const key of ['zenith', 'mid', 'horizon', 'glow'] as const) {

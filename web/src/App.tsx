@@ -6,6 +6,7 @@ import { Scene } from './scene/Scene'
 import { Hud } from './ui/Hud'
 import { Home } from './ui/Home'
 import { ErrorBoundary } from './ui/ErrorBoundary'
+import { isThemeId } from './scene/themes'
 
 type Route = { kind: 'home' } | { kind: 'sample'; id: string } | { kind: 'repo'; owner: string; name: string; sha?: string }
 
@@ -131,6 +132,8 @@ function applyUrlState(params: URLSearchParams, keyframes: number) {
   if (sim != null && !Number.isNaN(Number(sim))) s.setSimulateAuthor(Number(sim))
   if (params.get('play') === '1') s.setPlaying(true)
   if (params.get('day') === '1') s.setDay(true)
+  const theme = params.get('theme')
+  if (isThemeId(theme)) s.setTheme(theme)
 }
 
 function Center({ children }: { children: React.ReactNode }) {
