@@ -47,6 +47,9 @@ interface State {
   /** Weather: rain over the city. */
   rain: boolean
   setRain: (v: boolean) => void
+  /** Daylight instead of the default dusk. */
+  day: boolean
+  setDay: (v: boolean) => void
   /** The cinematic flythrough is running; the HUD steps aside. */
   filming: boolean
   setFilming: (v: boolean) => void
@@ -106,6 +109,8 @@ export const useStore = create<State>((set, get) => ({
   setPinnedEvent: (pinnedEvent) => set({ pinnedEvent }),
   rain: false,
   setRain: (rain) => set({ rain }),
+  day: false,
+  setDay: (day) => set({ day }),
   filming: false,
   setFilming: (filming) => set({ filming }),
   snapshot: 0,

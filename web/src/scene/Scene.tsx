@@ -168,10 +168,10 @@ const DUSK = {
 }
 
 /**
- * It is always dusk. The day-to-night curve over the timeline is here but
- * pinned to dusk: scrubbing history while the sky changed read as random.
- * Writes `atmosphere.night` for the materials (windows, lamps, car lights)
- * and lerps the lights, fog and sky each frame; rain dims and thickens.
+ * Dusk by default, daylight on request (the "daylight" switch, or ?day=1),
+ * with a two second fade between them. Writes `atmosphere.night` for the
+ * materials (windows, lamps, car lights) and lerps the lights, fog and sky
+ * each frame; rain dims and thickens.
  */
 function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Vector3 }) {
   const scene = useThree((s) => s.scene)
@@ -183,8 +183,9 @@ function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Ve
   })
   useFrame(() => {
     void city
-    const night = 1
-    atmosphere.night = night
+    const wantNight = useStore.getState().day ? 0 : 1
+    atmosphere.night += (wantNight - atmosphere.night) * 0.03
+    const night = atmosphere.night
     // Rain fades in over a second; it darkens the day and thickens the haze.
     const wantRain = useStore.getState().rain ? 1 : 0
     atmosphere.rain += (wantRain - atmosphere.rain) * 0.04
