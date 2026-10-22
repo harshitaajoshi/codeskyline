@@ -5,7 +5,7 @@ import { formatISO, formatNum, githubFileUrl } from '../city/scales'
 import type { City } from '../city/types'
 import { createShare } from '../city/api'
 import { Timeline } from './Timeline'
-import { Tour, shouldShowTour, tourShows } from './Tour'
+import { Tour, shouldShowTour } from './Tour'
 import { THEMES, THEME_IDS } from '../scene/themes'
 import { Glyph, MODE_GLYPH } from './glyphs'
 import { simulateDeparture } from '../city/knowledge'
@@ -21,7 +21,6 @@ import { Wordmark } from './Wordmark'
 export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () => void; onHome: () => void }) {
   const walking = useStore((s) => s.walking)
   const filming = useStore((s) => s.filming)
-  const tourStep = useStore((s) => s.tourStep)
   const setTourStep = useStore((s) => s.setTourStep)
 
   useEffect(() => {
@@ -53,11 +52,11 @@ export function Hud({ city, onOpenFile, onHome }: { city: City; onOpenFile: () =
     <div className="text-ivory">
       <div className="scrim-top pointer-events-none absolute inset-x-0 top-0 h-32" />
       <TopLine city={city} onOpenFile={onOpenFile} onHome={onHome} />
-      {tourShows(tourStep, 'lens') && <Lens city={city} />}
-      {tourShows(tourStep, 'insights') && <Insights city={city} />}
+      <Lens city={city} />
+      <Insights city={city} />
       <Tooltip city={city} />
       <SelectedTag city={city} />
-      {tourShows(tourStep, 'inspector') && <Inspector city={city} />}
+      <Inspector city={city} />
       <Search city={city} />
       <Timeline city={city} />
       <Tour city={city} />

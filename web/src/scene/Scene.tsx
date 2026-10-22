@@ -345,9 +345,8 @@ function Camera({ city }: { city: City }) {
     const h = height(linesAt(timelineFor(city), flyTo, s.k), heightScale, city.stats.maxLines)
     const tx = f.x + f.w / 2
     const tz = f.z + f.d / 2
-    // Far enough back that the whole building and its name tag fit; the
-    // tour hangs back further so the neighbourhood is in the frame.
-    const dist = Math.max(16, h * 2.4, Math.max(f.w, f.d) * 6) * (s.tourStep != null ? 2.2 : 1)
+    // Far enough back that the whole building and its name tag fit.
+    const dist = Math.max(16, h * 2.4, Math.max(f.w, f.d) * 6)
     // A beat after mount so it runs after the initial placement above. No
     // cleanup: consuming flyTo re-runs this effect and must not cancel it.
     setTimeout(() => {
