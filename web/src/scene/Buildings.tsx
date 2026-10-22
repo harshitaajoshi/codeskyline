@@ -350,8 +350,8 @@ export function Buildings({
         onPointerOut={interactive ? () => hover(null) : undefined}
         onClick={interactive ? onClick : undefined}
       />
-      <Crowns city={city} visible={visible} uniforms={uniforms} aFile={aFile} aVariant={aVariant.crown} aBody={aVariant.body} />
-      <Glow city={city} timeline={timeline} uniforms={uniforms} />
+      {!/[?&]off=[^&]*crowns/.test(location.search) && <Crowns city={city} visible={visible} uniforms={uniforms} aFile={aFile} aVariant={aVariant.crown} aBody={aVariant.body} />}
+      {!/[?&]off=[^&]*glow/.test(location.search) && <Glow city={city} timeline={timeline} uniforms={uniforms} />}
     </>
   )
 }

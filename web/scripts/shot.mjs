@@ -17,7 +17,9 @@ const proc = spawn(
   chrome,
   [
     '--headless=new', '--no-sandbox', '--no-first-run', '--disable-extensions',
-    '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist',
+    // The real GPU (ANGLE Metal), as a user's Chrome uses; SHOT_SOFTWARE=1 for SwiftShader.
+    // Never trust a SwiftShader render alone: it accepts shaders that black out on Metal.
+    ...(process.env.SHOT_SOFTWARE ? ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] : ['--use-angle=metal', '--ignore-gpu-blocklist']),
     '--hide-scrollbars', `--window-size=${width},${height}`, `--remote-debugging-port=${port}`,
     `--user-data-dir=/tmp/csky-chrome-${port}`, 'about:blank',
   ],
@@ -44,6 +46,9 @@ try {
     if (m.id && pending.has(m.id)) {
       pending.get(m.id)(m.result)
       pending.delete(m.id)
+    } else if (m.method === 'Runtime.exceptionThrown') {
+      const d = m.params.exceptionDetails
+      logs.push(`[exception] ${d.exception?.description ?? d.text} @ ${d.url ?? ''}:${d.lineNumber ?? ''}`)
     } else if (m.method === 'Runtime.consoleAPICalled') {
       logs.push(`[console.${m.params.type}] ${m.params.args.map((a) => a.value ?? a.description ?? JSON.stringify(a)).join(' ')}`)
     } else if (m.method === 'Runtime.exceptionThrown') {

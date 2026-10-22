@@ -12,6 +12,7 @@ let patched = false
 export function patchHeightFog(): void {
   if (patched) return
   patched = true
+  if (typeof location !== 'undefined' && /[?&]off=[^&]*fog/.test(location.search)) return
 
   THREE.ShaderChunk.fog_pars_vertex = /* glsl */ `
 #ifdef USE_FOG

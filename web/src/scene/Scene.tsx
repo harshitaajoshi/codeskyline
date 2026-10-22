@@ -13,6 +13,7 @@ import type { City } from '../city/types'
 import { Buildings } from './Buildings'
 import { Coupling } from './Coupling'
 import { Cranes } from './Cranes'
+import { Diagnostics } from './Diagnostics'
 import { Districts } from './Districts'
 import { FireLights } from './FireLights'
 import { Flames } from './Flames'
@@ -31,6 +32,10 @@ import { patchHeightFog } from './fog'
 import { atmosphere } from './atmosphere'
 
 patchHeightFog()
+
+/** `?off=a,b,c` skips parts of the scene; a bisecting aid for rendering bugs. */
+const OFF = new Set((new URLSearchParams(location.search).get('off') ?? '').split(',').filter(Boolean))
+const off = (name: string) => OFF.has(name)
 
 const tlCache = new WeakMap<City, TimelineData>()
 export function timelineFor(city: City): TimelineData {
@@ -76,9 +81,9 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
     >
       <color attach="background" args={['#0e1120']} />
       <fog attach="fog" args={['#1b1e2c', size * 0.6, size * 4]} />
-      <Sky radius={size * 6} sun={sunDir} />
-      <DuskEnvironment sun={sunDir} />
-      <DayNight city={city} size={size} sun={sun} />
+      {!off('sky') && <Sky radius={size * 6} sun={sunDir} />}
+      {!off('env') && <DuskEnvironment sun={sunDir} />}
+      {!off('daynight') && <DayNight city={city} size={size} sun={sun} />}
       <hemisphereLight ref={hemi} args={['#5d6f96', '#1c1b1f', 1.6]} />
       {/* A low sun: long shadows across the districts are most of the depth. */}
       <directionalLight
@@ -104,22 +109,25 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
         <meshStandardMaterial color="#14161c" roughness={1} />
       </mesh>
       <DepthTuning size={size} />
+      {new URLSearchParams(location.search).get('debug') === '1' && <Diagnostics />}
 
-      <Districts city={city} />
-      <Streets city={city} />
-      <Waterfront city={city} />
-      {wet && <WetStreets city={city} />}
-      {traffic && <Traffic city={city} timeline={timeline} />}
-      <Lots city={city} timeline={timeline} />
-      <Buildings city={city} timeline={timeline} interactive={!hero} />
-      <Flames city={city} timeline={timeline} />
-      <FireLights city={city} timeline={timeline} />
-      <Cranes city={city} timeline={timeline} />
-      <Rain />
+      {!off('districts') && <Districts city={city} />}
+      {!off('streets') && <Streets city={city} />}
+      {!off('water') && <Waterfront city={city} />}
+      {wet && !off('wet') && <WetStreets city={city} />}
+      {traffic && !off('traffic') && <Traffic city={city} timeline={timeline} />}
+      {!off('lots') && <Lots city={city} timeline={timeline} />}
+      {!off('buildings') && <Buildings city={city} timeline={timeline} interactive={!hero} />}
+      {!off('flames') && <Flames city={city} timeline={timeline} />}
+      {!off('fire') && <FireLights city={city} timeline={timeline} />}
+      {!off('cranes') && <Cranes city={city} timeline={timeline} />}
+      {!off('rain') && <Rain />}
       <Coupling city={city} timeline={timeline} />
-      <Suspense fallback={null}>
-        <Labels city={city} />
-      </Suspense>
+      {!off('labels') && (
+        <Suspense fallback={null}>
+          <Labels city={city} />
+        </Suspense>
+      )}
 
       <Marker city={city} timeline={timeline} beam={!hero} />
       {hero ? <HeroCamera city={city} /> : <Camera city={city} />}
@@ -127,13 +135,15 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       {!hero && <Snapshot city={city} />}
       {!hero && <Walk city={city} timeline={timeline} />}
 
+      {off('composer') ? null : (
       <EffectComposer>
-        <N8AO aoRadius={3} intensity={2.5} distanceFalloff={1} halfRes />
-        <Bloom luminanceThreshold={1} mipmapBlur intensity={0.9} radius={0.55} />
+        {off('ao') ? <></> : <N8AO aoRadius={3} intensity={2.5} distanceFalloff={1} halfRes />}
+        {off('bloom') ? <></> : <Bloom luminanceThreshold={1} mipmapBlur intensity={0.9} radius={0.55} />}
         {/* Tilt-shift: a focus band across the middle, so the city reads as a model on a table. */}
         {walking ? <></> : <TiltShift2 blur={hero ? 0.14 : 0.07} taper={hero ? 0.6 : 0.75} start={[0, 0.54]} end={[1, 0.54]} samples={6} />}
         <Vignette eskil={false} offset={0.25} darkness={0.75} />
       </EffectComposer>
+      )}
     </Canvas>
   )
 }

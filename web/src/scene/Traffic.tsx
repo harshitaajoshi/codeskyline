@@ -9,26 +9,6 @@ import { sidewalkWidth, streetWidth } from './Districts'
 import { furnishedPlates } from './Streets'
 import { atmosphere } from './atmosphere'
 
-// Headlight beam on the road: a quad in front of the car, bright at the
-// bumper and fading out, drawn additively.
-const BEAM = new THREE.PlaneGeometry(2.2, 1.1).rotateX(-Math.PI / 2).translate(1.3, 0.012, 0)
-const BEAM_VERT = /* glsl */ `
-varying vec2 vUv;
-void main() {
-  vUv = uv;
-  gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
-}`
-const BEAM_FRAG = /* glsl */ `
-varying vec2 vUv;
-uniform float uNight;
-void main() {
-  float along = 1.0 - vUv.x;            // 1 at the bumper, 0 at the far end
-  float across = 1.0 - abs(vUv.y * 2.0 - 1.0);
-  float spread = mix(0.35, 1.0, 1.0 - along);
-  float a = pow(along, 1.4) * smoothstep(0.0, spread, across) * 0.55 * uNight;
-  gl_FragColor = vec4(vec3(1.0, 0.93, 0.78) * a, a);
-}`
-
 const MAX_CARS = 1400
 const RECENT = 2 * 365 * 86400
 
@@ -57,6 +37,29 @@ function carGeometry(): THREE.BufferGeometry {
   for (const p of parts) p.dispose()
   return merged
 }
+
+// Headlight beam on the road: a quad in front of the car, bright at the
+// bumper and fading out, drawn additively. Injected into MeshBasicMaterial.
+const BEAM = new THREE.PlaneGeometry(2.2, 1.1).rotateX(-Math.PI / 2).translate(1.3, 0.012, 0)
+const BEAM_VERT = /* glsl */ `
+varying vec2 vBeamUv;
+`
+const BEAM_FRAG_PARS = /* glsl */ `
+varying vec2 vBeamUv;
+uniform float uNight;
+`
+const BEAM_FRAG = /* glsl */ `
+{
+  // Clamped before pow: interpolation can push uv a hair past 1, and a
+  // negative base gives NaN, which the bloom then smears over the whole frame.
+  float along = clamp(1.0 - vBeamUv.x, 0.0, 1.0);            // 1 at the bumper, 0 at the far end
+  float across = clamp(1.0 - abs(vBeamUv.y * 2.0 - 1.0), 0.0, 1.0);
+  float spread = mix(0.35, 1.0, 1.0 - along);
+  float a = clamp(pow(along, 1.4) * smoothstep(0.0, spread, across) * 0.55 * uNight, 0.0, 1.0);
+  diffuseColor.rgb *= a;
+  diffuseColor.a = a;
+}
+`
 
 interface Loop {
   dir: number
@@ -100,19 +103,16 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
     return m
   }, [night])
   const beams = useRef<THREE.InstancedMesh>(null!)
-  const beamMat = useMemo(
-    () =>
-      new THREE.ShaderMaterial({
-        vertexShader: BEAM_VERT,
-        fragmentShader: BEAM_FRAG,
-        uniforms: { uNight: { value: 1 } },
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-      }),
-    [],
-  )
+  const beamMat = useMemo(() => {
+    const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(1.0, 0.93, 0.78), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false })
+    m.customProgramCacheKey = () => 'csky-beam'
+    m.onBeforeCompile = (shader) => {
+      shader.uniforms.uNight = night
+      shader.vertexShader = BEAM_VERT + shader.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\nvBeamUv = uv;')
+      shader.fragmentShader = BEAM_FRAG_PARS + shader.fragmentShader.replace('#include <color_fragment>', '#include <color_fragment>\n' + BEAM_FRAG)
+    }
+    return m
+  }, [night])
   useEffect(() => () => {
     geometry.dispose()
     material.dispose()
@@ -129,23 +129,23 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
     if (m.instanceColor) m.instanceColor.needsUpdate = true
   }, [cars])
 
-  const tmp = useMemo(() => ({ mat: new THREE.Matrix4(), pos: new THREE.Vector3(), q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), one: new THREE.Vector3(1, 1, 1), zero: new THREE.Vector3() }), [])
+  const tmp = useMemo(() => ({ mat: new THREE.Matrix4(), pos: new THREE.Vector3(), q: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0), one: new THREE.Vector3(1, 1, 1), away: new THREE.Vector3(0, -1e4, 0) }), [])
 
   useFrame((_, dt) => {
     const m = mesh.current
     const b = beams.current
-    if (!m || !b || cars.length === 0) return
-    beamMat.uniforms.uNight!.value = atmosphere.night
+    if (!m || cars.length === 0) return
     night.value = atmosphere.night
-    const { mat, pos, q, up, one, zero } = tmp
+    const { mat, pos, q, up, one, away } = tmp
     const step = Math.min(dt, 0.05)
     for (let i = 0; i < cars.length; i++) {
       const c = cars[i]!
       const l = loops[c.loop]!
       if (!live[c.loop]) {
-        mat.compose(zero, q, zero)
+        // Parked out of sight; a zero-scale matrix would give NaN normals.
+        mat.compose(away, q, one)
         m.setMatrixAt(i, mat)
-        b.setMatrixAt(i, mat)
+        if (b) b.setMatrixAt(i, mat)
         continue
       }
       c.s += c.v * step
@@ -170,10 +170,10 @@ export function Traffic({ city, timeline }: { city: City; timeline: TimelineData
       q.setFromAxisAngle(up, yaw)
       mat.compose(pos, q, one)
       m.setMatrixAt(i, mat)
-      b.setMatrixAt(i, mat)
+      if (b) b.setMatrixAt(i, mat)
     }
     m.instanceMatrix.needsUpdate = true
-    b.instanceMatrix.needsUpdate = true
+    if (b) b.instanceMatrix.needsUpdate = true
   })
 
   if (cars.length === 0) return null

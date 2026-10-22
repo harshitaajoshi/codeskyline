@@ -27,7 +27,8 @@ void main() {
   vec3 c = mix(uHorizon, uMid, smoothstep(0.0, 0.18, h));
   c = mix(c, uZenith, smoothstep(0.15, 0.7, h));
   // The last of the sun: a warm glow low on the horizon, brightest toward it.
-  float toward = 0.5 + 0.5 * dot(normalize(vec3(vDir.x, 0.0, vDir.z)), normalize(vec3(uSun.x, 0.0, uSun.z)));
+  // Clamped: pow() of a base a hair below zero is NaN, and NaN spreads through the bloom.
+  float toward = clamp(0.5 + 0.5 * dot(normalize(vec3(vDir.x, 0.0, vDir.z)), normalize(vec3(uSun.x, 0.0, uSun.z))), 0.0, 1.0);
   float band = pow(1.0 - clamp(h * 3.5, 0.0, 1.0), 2.5);
   c += uGlow * band * (0.25 + 0.75 * pow(toward, 3.0));
   gl_FragColor = vec4(c, 1.0);
