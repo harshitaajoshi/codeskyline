@@ -52,9 +52,8 @@ Each one is a button that shows it.
 - **A real city at dusk.** Towers with setbacks and spires, floors and
   storefronts on the facades, sidewalks, lamps, trees, lane markings, traffic
   with headlights, a harbour the skyline reflects in, and fire that lights up
-  the buildings around it. Time of day follows the timeline: the first commits
-  are in daylight, the present is dusk. Cranes appear on buildings that are
-  growing; demolitions leave rubble.
+  the buildings around it. Cranes appear on buildings that are growing;
+  demolitions leave rubble.
 - **Rain.** One switch in the lens panel (or `?rain=1`).
 - **Postcard and film.** Save a 2x picture of the city, or run a forty second
   flythrough over its findings.
