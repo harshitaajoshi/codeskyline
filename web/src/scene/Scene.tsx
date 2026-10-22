@@ -21,7 +21,6 @@ import { Flythrough } from './Flythrough'
 import { Labels } from './Labels'
 import { Lots } from './Lots'
 import { Marker } from './Marker'
-import { Rain } from './Rain'
 import { Sky, makeSkyMaterial } from './Sky'
 import { Snapshot } from './Snapshot'
 import { Streets } from './Streets'
@@ -60,8 +59,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   // The extra passes are worth it up to a mid-sized city; beyond that the
   // frame budget goes to the buildings.
   const n = city.files.length
-  const rain = useStore((s) => s.rain)
-  const wet = n <= 4000 || (rain && n <= 12000)
+  const wet = n <= 4000
   const traffic = n <= 30000
   // The sun sits low on the horizon: long shadows, and the sky glows on its side.
   const sun = useMemo(() => new THREE.Vector3(cx + size * 0.85, size * 0.22, cz - size * 0.5), [cx, cz, size])
@@ -121,7 +119,6 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       {!off('flames') && <Flames city={city} timeline={timeline} />}
       {!off('fire') && <FireLights city={city} timeline={timeline} />}
       {!off('cranes') && <Cranes city={city} timeline={timeline} />}
-      {!off('rain') && <Rain />}
       <Coupling city={city} timeline={timeline} />
       {!off('labels') && (
         <Suspense fallback={null}>
@@ -171,7 +168,7 @@ const DUSK = {
  * Dusk by default, daylight on request (the "daylight" switch, or ?day=1),
  * with a two second fade between them. Writes `atmosphere.night` for the
  * materials (windows, lamps, car lights) and lerps the lights, fog and sky
- * each frame; rain dims and thickens.
+ * each frame.
  */
 function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Vector3 }) {
   const scene = useThree((s) => s.scene)
@@ -186,9 +183,6 @@ function DayNight({ city, size, sun }: { city: City; size: number; sun: THREE.Ve
     const wantNight = useStore.getState().day ? 0 : 1
     atmosphere.night += (wantNight - atmosphere.night) * 0.03
     const night = atmosphere.night
-    // Rain fades in over a second; it darkens the day and thickens the haze.
-    const wantRain = useStore.getState().rain ? 1 : 0
-    atmosphere.rain += (wantRain - atmosphere.rain) * 0.04
     const rain = atmosphere.rain
     const h = hemi.current
     const d = dir.current

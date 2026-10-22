@@ -54,7 +54,6 @@ Each one is a button that shows it.
   with headlights, a harbour the skyline reflects in, and fire that lights up
   the buildings around it. Cranes appear on buildings that are growing;
   demolitions leave rubble.
-- **Rain.** One switch in the lens panel (or `?rain=1`).
 - **Postcard and film.** Save a 2x picture of the city, or run a forty second
   flythrough over its findings.
 - **Shareable.** Every view is a URL (`/r/owner/repo?t=0.4&mode=owners&f=12`),

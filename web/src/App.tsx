@@ -130,7 +130,6 @@ function applyUrlState(params: URLSearchParams, keyframes: number) {
   const sim = params.get('sim')
   if (sim != null && !Number.isNaN(Number(sim))) s.setSimulateAuthor(Number(sim))
   if (params.get('play') === '1') s.setPlaying(true)
-  if (params.get('rain') === '1') s.setRain(true)
   if (params.get('day') === '1') s.setDay(true)
 }
 
