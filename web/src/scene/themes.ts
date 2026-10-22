@@ -3,10 +3,10 @@
  * and the street furniture read the active one from the store. Every theme
  * keeps the lenses legible: fire is always fire, owners stay distinct.
  */
-export type ThemeId = 'dusk' | 'blueprint' | 'noir' | 'paper'
+export type ThemeId = 'dusk' | 'noir'
 
-/** How the building facades are drawn: 0 real, 1 monochrome, 2 blueprint lines, 3 paper blocks. */
-export type FacadeStyle = 0 | 1 | 2 | 3
+/** How the building facades are drawn: 0 real, 1 monochrome. */
+export type FacadeStyle = 0 | 1
 
 export interface Theme {
   id: ThemeId
@@ -65,32 +65,6 @@ export const THEMES: Record<ThemeId, Theme> = {
     flames: true,
     effects: { ao: true, bloom: true, tiltShift: true, grain: 0 },
   },
-  blueprint: {
-    id: 'blueprint',
-    label: 'Blueprint',
-    hint: 'white lines on drafting paper',
-    night: 0,
-    facade: 2,
-    sky: { zenith: '#0e2f6b', mid: '#113a80', horizon: '#164a9a', glow: '#164a9a' },
-    dusk: { sun: '#ffffff', sunIntensity: 0.9, hemiSky: '#9fc0ff', hemiGround: '#28478a', hemi: 1.4, fog: '#123b82', background: '#0f3474' },
-    fogNear: 2.5,
-    fogFar: 9,
-    env: 0.3,
-    ground: '#0f3474',
-    lot: '#17408c',
-    asphalt: [0.6, 0.72, 0.26],
-    sidewalk: [0.34, 0.3],
-    crown: '#2d5fb4',
-    labelColor: '#eaf2ff',
-    lamp: { head: '#ffffff', pool: [255, 255, 255] },
-    car: ['#dbe8ff'],
-    furniture: false,
-    traffic: false,
-    water: false,
-    wet: false,
-    flames: true,
-    effects: { ao: false, bloom: false, tiltShift: false, grain: 0 },
-  },
   noir: {
     id: 'noir',
     label: 'Noir',
@@ -116,32 +90,6 @@ export const THEMES: Record<ThemeId, Theme> = {
     wet: true,
     flames: true,
     effects: { ao: true, bloom: true, tiltShift: true, grain: 0.35 },
-  },
-  paper: {
-    id: 'paper',
-    label: 'Paper',
-    hint: 'the architect’s model in daylight',
-    night: 0,
-    facade: 3,
-    sky: { zenith: '#c9d6e6', mid: '#dfe7f0', horizon: '#efe9df', glow: '#f3e4c8' },
-    dusk: { sun: '#fff1dc', sunIntensity: 1.9, hemiSky: '#cfd9e6', hemiGround: '#8f887c', hemi: 1.0, fog: '#d3d7dc', background: '#cdd4dc' },
-    fogNear: 4,
-    fogFar: 16,
-    env: 0.6,
-    ground: '#bdb8ad',
-    lot: '#b5afa3',
-    asphalt: [0.08, 0.05, 0.6],
-    sidewalk: [0.78, 0.72],
-    crown: '#e9e4da',
-    labelColor: '#2a2a2a',
-    lamp: { head: '#ffffff', pool: [255, 255, 255] },
-    car: ['#ffffff'],
-    furniture: false,
-    traffic: false,
-    water: false,
-    wet: false,
-    flames: true,
-    effects: { ao: true, bloom: false, tiltShift: true, grain: 0 },
   },
 }
 

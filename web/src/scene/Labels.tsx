@@ -17,7 +17,6 @@ export function Labels({ city }: { city: City }) {
   const signs = useMemo(() => pickSigns(city), [city])
   const theme = useStore((s) => s.theme)
   const T = THEMES[theme]
-  const dark = T.facade === 3
   const { size } = cityBounds(city)
   const groups = useRef<(THREE.Group | null)[]>([])
   const v = useMemo(() => new THREE.Vector3(), [])
@@ -56,8 +55,8 @@ export function Labels({ city }: { city: City }) {
             fontSize={s.depth === 1 ? 0.5 : 0.42}
             color={T.labelColor}
             fillOpacity={s.depth === 1 ? 0.82 : 0.62}
-            outlineWidth={dark ? 0.015 : 0.035}
-            outlineColor={dark ? '#f1efe8' : '#0c0c0c'}
+            outlineWidth={0.035}
+            outlineColor="#0c0c0c"
             outlineOpacity={0.55}
             letterSpacing={s.depth === 1 ? 0.16 : 0.08}
             anchorX="center"

@@ -623,36 +623,7 @@ const FRAG_FACADE = /* glsl */ `
   vec3 n = normalize(vCskyNrm);
   float s1 = fract(vCskySeed * 7.31);
   float s2 = fract(vCskySeed * 3.17);
-  if (uStyle == 2) {
-    // Blueprint: navy paper, white lines at every floor slab and bay, and a lit roof edge.
-    vec3 paper = vec3(0.06, 0.18, 0.42);
-    vec3 ink = vec3(0.9, 0.95, 1.0);
-    float line = 0.0;
-    if (n.y > 0.5) {
-      line = 0.0;
-      paper *= 1.25;
-    } else if (abs(n.y) < 0.5) {
-      float along = abs(n.x) > 0.5 ? vCskyPos.z : vCskyPos.x;
-      float fy = fract(vCskyPos.y / 0.62);
-      float fx = fract(along / 0.5);
-      float slab = 1.0 - (smoothstep(0.0, 0.05, fy) * (1.0 - smoothstep(0.95, 1.0, fy)));
-      float bay = 1.0 - (smoothstep(0.0, 0.05, fx) * (1.0 - smoothstep(0.95, 1.0, fx)));
-      // The drafting lines thin out with distance so a far district reads as a navy mass, not white noise.
-      float far = smoothstep(25.0, 140.0, length(vViewPosition));
-      line = max(slab * 0.75, bay * 0.35) * (1.0 - 0.85 * far);
-      if (vCskyPos.y > vCskyH - 0.07) line = 1.0 - 0.5 * far;
-    }
-    diffuseColor.rgb = mix(paper, ink, line * 0.8);
-    csky_windowGlow = ink * line * 0.18;
-  } else if (uStyle == 3) {
-    // Paper: pastel matte blocks, lighter roofs, no windows.
-    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.96, 0.95, 0.92), 0.55) * (0.94 + 0.08 * s1);
-    if (n.y > 0.5) diffuseColor.rgb *= 1.06;
-    else if (abs(n.y) < 0.5) {
-      float fy = fract(vCskyPos.y / 0.62);
-      diffuseColor.rgb *= mix(0.9, 1.0, smoothstep(0.0, 0.05, fy));
-    }
-  } else {
+  {
   diffuseColor.rgb *= 0.85 + 0.3 * s1;
   if (n.y > 0.5) {
     // Roofs: flat grey membrane, a little lighter than the walls.

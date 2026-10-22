@@ -54,10 +54,9 @@ Each one is a button that shows it.
   with headlights, a harbour the skyline reflects in, and fire that lights up
   the buildings around it. Cranes appear on buildings that are growing;
   demolitions leave rubble.
-- **Four looks.** Dusk (the default), Blueprint (white lines on drafting
-  paper), Noir (black and white, the fires are the only colour) and Paper (the
-  architect's model in daylight). Pick one in the lens panel or with
-  `?theme=noir`; shared links and postcards keep it.
+- **Two looks.** Dusk (the default) and Noir (black and white, the fires are
+  the only colour). Pick one in the lens panel or with `?theme=noir`; shared
+  links and postcards keep it.
 - **Postcard and film.** Save a 2x picture of the city, or run a forty second
   flythrough over its findings.
 - **Shareable.** Every view is a URL (`/r/owner/repo?t=0.4&mode=owners&f=12`),
