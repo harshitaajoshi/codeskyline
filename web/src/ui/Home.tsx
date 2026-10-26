@@ -189,7 +189,7 @@ export function Home({ onOpen, onSample }: { onOpen: (owner: string, name: strin
                 ))}
               </div>
               <div className="text-ivory/35 mt-2 font-mono text-xs" title="any github.com address works with the host swapped">
-                or swap the host: <span className="text-ivory/25 line-through">github.com</span> <span className="text-ivory/70">{location.host}</span>/owner/repo
+                or go straight to <span className="text-ivory/70">{location.host}</span>/owner/repo
               </div>
               {error && <div className="text-fire mt-3 max-w-xl font-mono text-xs">{error}</div>}
             </form>
