@@ -12,6 +12,7 @@ import { simulateDeparture } from '../city/knowledge'
 import { partnersOf } from '../scene/Coupling'
 import { Insights } from './Insights'
 import { Wordmark } from './Wordmark'
+import { repoFromPath } from '../city/route'
 
 /**
  * Four regions on a strict grid: a top line, the Lens column on the left,
@@ -125,7 +126,7 @@ function TopLine({ city, onOpenFile, onHome, onOpen }: { city: City; onOpenFile:
               <Glyph.external width={11} height={11} />
             </a>
           )}
-          {onOpen && location.pathname.startsWith('/r/') && <Freshness city={city} onOpen={onOpen} />}
+          {onOpen && repoFromPath(location.pathname) && <Freshness city={city} onOpen={onOpen} />}
         </div>
         <dl className="hidden items-end gap-9 md:flex">
           <Num v={compact(city.stats.files)} l="files" title="Live files at the latest commit; generated and vendored code is counted but hidden by default." />
@@ -491,7 +492,7 @@ function ShareLink({ city }: { city: City }) {
     q.delete('play')
     const target = `${location.pathname}?${q.toString()}`
     let url = `${location.origin}${target}`
-    if (location.pathname.startsWith('/r/')) {
+    if (repoFromPath(location.pathname)) {
       try {
         url = await createShare(target)
       } catch {

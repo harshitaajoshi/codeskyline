@@ -1,10 +1,11 @@
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { cors } from 'hono/cors'
 import { skylineBadge } from './badge'
 import { ANALYZER_SHARDS } from './container'
 import { GitHubError, commitsBetween, parseRepoInput, resolveRepo } from './github'
 import { ogImage } from './og'
 import { publicState } from './job'
+import { repoFromPath } from './route'
 import type { Env, JobMessage, Summary } from './types'
 
 export { JobDO } from './job'
@@ -194,8 +195,7 @@ app.get('/og/:owner/:file', async (c) => {
 })
 
 /** The SPA shell with the city's title, description and preview image filled in. */
-app.get('/r/:owner/:name', async (c) => {
-  const { owner, name } = c.req.param()
+async function cityPage(c: Context<{ Bindings: Env }>, owner: string, name: string) {
   const shell = await c.env.ASSETS.fetch(new Request(new URL('/', c.req.url)))
   const html = await shell.text()
   const row = await c.env.DB.prepare('SELECT files, lines, commits, burning FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
@@ -215,7 +215,7 @@ app.get('/r/:owner/:name', async (c) => {
     `<meta property="og:image" content="${origin}/og/${owner}/${name}.png">`,
     `<meta property="og:image:width" content="1200">`,
     `<meta property="og:image:height" content="630">`,
-    `<meta property="og:url" content="${origin}/r/${owner}/${name}">`,
+    `<meta property="og:url" content="${origin}/${owner}/${name}">`,
     `<meta name="twitter:card" content="summary_large_image">`,
     `<meta name="twitter:title" content="${esc(title)}">`,
     `<meta name="twitter:description" content="${esc(desc)}">`,
@@ -223,7 +223,7 @@ app.get('/r/:owner/:name', async (c) => {
   ].join('\n    ')
   const out = html.replace(/<title>[^<]*<\/title>/, '').replace(/<meta name="description"[^>]*>/, '').replace('</head>', `    ${tags}\n  </head>`)
   return new Response(out, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } })
-})
+}
 
 function esc(s: string) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
@@ -235,7 +235,7 @@ function esc(s: string) {
 app.post('/api/share', async (c) => {
   const body = (await c.req.json().catch(() => ({}))) as { target?: string }
   const target = body.target ?? ''
-  if (!/^\/r\/[\w.-]+\/[\w.-]+(\?[\w%=&.:+-]*)?$/.test(target) || target.length > 2000) return c.json({ error: 'bad target' }, 400)
+  if (!/^\/[\w.-]+\/[\w.-]+(\?[\w%=&.:+-]*)?$/.test(target) || target.length > 2000) return c.json({ error: 'bad target' }, 400)
   const id = shortId()
   await c.env.DB.prepare('INSERT INTO shares (id, target, created_at) VALUES (?, ?, ?)').bind(id, target, Date.now()).run()
   return ok(c, { id, url: `${c.env.PUBLIC_ORIGIN}/s/${id}` })
@@ -266,6 +266,16 @@ app.get('/badge/:owner/:file', async (c) => {
 })
 
 app.get('/api/health', (c) => ok(c, { ok: true }))
+
+// github.com/owner/repo -> /owner/repo: the city, with its preview filled
+// in. Old /r/ links, .git and deep GitHub paths redirect to it.
+app.get('*', async (c) => {
+  const url = new URL(c.req.url)
+  const repo = repoFromPath(url.pathname)
+  if (!repo) return c.env.ASSETS.fetch(c.req.raw)
+  if (url.pathname !== repo.path) return c.redirect(repo.path + url.search, 301)
+  return cityPage(c, repo.owner, repo.name)
+})
 
 // Everything else is the SPA.
 app.all('*', (c) => c.env.ASSETS.fetch(c.req.raw))

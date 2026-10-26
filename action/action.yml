@@ -74,7 +74,7 @@ runs:
       run: |
         set -euo pipefail
         url=""
-        if [ -n "$CITY" ]; then url="${CITY%/}/r/${GITHUB_REPOSITORY}"; fi
+        if [ -n "$CITY" ]; then url="${CITY%/}/${GITHUB_REPOSITORY}"; fi
         # The author's login plus the emails on the PR's own commits, so
         # ownership crossings are not reported against the author's own work.
         emails=$(git log --format='%ae' "$BASE_SHA".."$HEAD_SHA" 2>/dev/null | sort -u | paste -sd, - || true)

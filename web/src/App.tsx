@@ -3,6 +3,7 @@ import { useStore } from './store'
 import { loadFile, loadSample } from './city/load'
 import { etaText, fetchCity, fetchRepo, requestAnalysis, subscribeJob, type JobState } from './city/api'
 import { rememberCity } from './city/cities'
+import { cityPath, repoFromPath } from './city/route'
 import { Wordmark } from './ui/Wordmark'
 import { Scene } from './scene/Scene'
 import { Hud } from './ui/Hud'
@@ -14,8 +15,12 @@ type Route = { kind: 'home' } | { kind: 'sample'; id: string } | { kind: 'repo';
 
 function parseRoute(): Route {
   const params = new URLSearchParams(location.search)
-  const m = /^\/r\/([\w.-]+)\/([\w.-]+)\/?$/.exec(location.pathname)
-  if (m) return { kind: 'repo', owner: m[1]!, name: m[2]!, sha: params.get('sha') ?? undefined }
+  const repo = repoFromPath(location.pathname)
+  if (repo) {
+    // An old /r/ link, a .git or a deep GitHub path: show the plain address.
+    if (location.pathname !== repo.path) history.replaceState(null, '', repo.path + location.search)
+    return { kind: 'repo', owner: repo.owner, name: repo.name, sha: params.get('sha') ?? undefined }
+  }
   const sample = params.get('sample')
   if (sample) return { kind: 'sample', id: sample }
   return { kind: 'home' }
@@ -30,7 +35,7 @@ export function App() {
   const setError = useStore((s) => s.setError)
   const [route, setRoute] = useState<Route>(parseRoute)
   const [dragging, setDragging] = useState(false)
-  /** When a /r/ route has no city yet: what we know about the repository. */
+  /** When a repository route has no city yet: what we know about the repository. */
   const [pending, setPending] = useState<{ owner: string; name: string; job: JobState | null; sizeKB?: number; exists: boolean } | null>(null)
   const fileInput = useRef<HTMLInputElement>(null)
 
@@ -60,14 +65,21 @@ export function App() {
       async (e) => {
         const msg = String(e instanceof Error ? e.message : e)
         if (route.kind !== 'repo' || msg !== 'not analyzed yet') return setError(msg)
-        // No city for this repository yet. Is one being built, or can we offer to?
+        // No city for this repository yet. Follow the build under way, or
+        // start one: arriving at the address is the request.
         try {
           const r = await fetchRepo(route.owner, route.name)
-          setPending({ owner: route.owner, name: route.name, job: r?.job ?? null, exists: true })
-          setError(r?.job ? 'building' : 'not built')
+          if (r?.job) {
+            setPending({ owner: route.owner, name: route.name, job: r.job, exists: true })
+            return setError('building')
+          }
+          const a = await requestAnalysis(`https://github.com/${route.owner}/${route.name}`)
+          if (a.status === 'ready') return setRoute(parseRoute())
+          setPending({ owner: route.owner, name: route.name, job: { key: a.key, status: a.status, stage: a.stage ?? 'queued', detail: a.detail ?? '', log: a.log ?? [] }, sizeKB: a.sizeKB, exists: true })
+          setError('building')
         } catch (err) {
           const m = String(err instanceof Error ? err.message : err)
-          setPending({ owner: route.owner, name: route.name, job: null, exists: false })
+          setPending({ owner: route.owner, name: route.name, job: null, exists: !/not found/i.test(m) })
           setError(/not found/i.test(m) ? 'no such repository' : m)
         }
       },
@@ -114,7 +126,7 @@ export function App() {
     [setCity, setLoading, setError],
   )
 
-  const onOpen = useCallback((owner: string, name: string, sha?: string) => navigate(`/r/${owner}/${name}${sha ? `?sha=${sha}` : ''}`), [navigate])
+  const onOpen = useCallback((owner: string, name: string, sha?: string) => navigate(`${cityPath(owner, name)}${sha ? `?sha=${sha}` : ''}`), [navigate])
   // The landing page parks its hero city in the store too, so a route needs
   // its own load to have finished before the interactive scene mounts.
   const showCity = route.kind !== 'home' && city && status === 'ready'
@@ -235,7 +247,7 @@ function SmallScreen() {
         <p className="text-ivory/65 mt-3 text-[14px] leading-relaxed">
           A city is fifty thousand buildings on a GPU with a keyboard to fly around it. Open this link on a computer, or read the repository's skyline below.
         </p>
-        <img src={`/og${location.pathname.replace(/^\/r/, '')}.png`} alt="" className="mt-6 w-full" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
+        <img src={`/og${repoFromPath(location.pathname)?.path ?? '/_'}.png`} alt="" className="mt-6 w-full" onError={(e) => ((e.target as HTMLImageElement).style.display = 'none')} />
       </div>
     </div>
   )

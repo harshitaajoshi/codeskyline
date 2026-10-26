@@ -61,7 +61,10 @@ Each one is a button that shows it.
   them, and your preferences are remembered.
 - **Postcard and film.** Save a 2x picture of the city, or run a forty second
   flythrough over its findings.
-- **Shareable.** Every view is a URL (`/r/owner/repo?t=0.4&mode=owners&f=12`),
+- **Swap the host.** `github.com/apache/iggy` becomes `codeskyline.dev/apache/iggy`:
+  the city opens, or starts building if it has never been built. Deep GitHub
+  paths (`/tree/main/src`, `/pull/12`) and a trailing `.git` land on the same city.
+- **Shareable.** Every view is a URL (`/owner/repo?t=0.4&mode=owners&f=12`),
   short links that unfurl with a picture of the skyline on Slack, X and
   LinkedIn, and a README badge that is a silhouette of the repo's own skyline
   and says how fresh the city is.
@@ -105,7 +108,7 @@ says whether a city is behind its repository.
 
 The badge takes `?theme=light`, `?label=<text>` and `?bare=1` (the silhouette
 alone, for your own layout). Hotspot columns are drawn in orange, and the
-stats end with how long ago the city was built. Every `/r/owner/repo` page
+stats end with how long ago the city was built. Every `/owner/repo` page
 carries Open Graph tags and a 1200×630 preview image rendered in the Worker.
 
 Deploy steps and the cost guardrails (monthly job budget, repository size cap,

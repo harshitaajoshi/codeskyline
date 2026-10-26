@@ -75,7 +75,7 @@ func TestBuildFlagsHotspotsCrossingsAndBus(t *testing.T) {
 		t.Errorf("risk should not be low: %+v", rep)
 	}
 
-	md := pr.Markdown(rep, "https://example.test/r/a/b")
+	md := pr.Markdown(rep, "https://example.test/a/b")
 	for _, want := range []string{"codeskyline-pr", "Hotspots touched", "core/engine.go", "open the city", "Bus factor 1"} {
 		if !strings.Contains(md, want) {
 			t.Errorf("markdown missing %q:\n%s", want, md)
