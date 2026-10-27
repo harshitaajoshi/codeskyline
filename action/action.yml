@@ -17,7 +17,7 @@ inputs:
     default: 'true'
   city-url:
     description: Base URL of a hosted CodeSkyline to link the city from (empty to omit).
-    default: https://codeskyline.harshitaajoshi.workers.dev
+    default: https://codeskyline.dev
 
 outputs:
   risk:

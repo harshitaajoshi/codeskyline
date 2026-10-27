@@ -5,14 +5,16 @@ codebase as a 3D city built from its commit history: folders are districts,
 files are buildings, height is lines of code, and the buildings on fire are the
 hotspots where the next bugs will be fixed.
 
+**Try it: [codeskyline.dev](https://codeskyline.dev).** Or take any GitHub URL
+and swap the host: [codeskyline.dev/apache/iggy](https://codeskyline.dev/apache/iggy).
+
+[![CodeSkyline](https://codeskyline.dev/badge/harshitaajoshi/codeskyline.svg)](https://codeskyline.dev/harshitaajoshi/codeskyline)
+
 ![react/react as a city at dusk, colored by owner: 7.3k buildings, 135 on fire, and the findings panel reading "if @josephsavona left, 2915 files would have no active owner"](docs/images/react-owners.png)
 
 Everything comes from `git log`. No working tree is checked out, no code is
 uploaded anywhere, and the hosted analyzer runs in a scale-to-zero container
 that costs nothing while idle.
-
-> Status: complete end to end and verified locally (analyzer, viewer, hosted
-> service, GitHub Action). Public deployment on Cloudflare is the remaining step.
 
 ## What it finds
 
@@ -103,7 +105,7 @@ immutable per commit and served pre-gzipped from R2; `/api/repo/owner/name`
 says whether a city is behind its repository.
 
 ```md
-![CodeSkyline](https://<your-worker>/badge/owner/repo.svg)
+[![CodeSkyline](https://codeskyline.dev/badge/owner/repo.svg)](https://codeskyline.dev/owner/repo)
 ```
 
 The badge takes `?theme=light`, `?label=<text>` and `?bare=1` (the silhouette

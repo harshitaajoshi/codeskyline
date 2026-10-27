@@ -41,7 +41,19 @@ pnpm db:migrate
 pnpm --filter web build && pnpm deploy
 ```
 
-Set `PUBLIC_ORIGIN` in `wrangler.jsonc` to the deployed URL.
+Set `PUBLIC_ORIGIN` in `wrangler.jsonc` to the deployed URL, and `routes` to
+your domain (the live one is `codeskyline.dev`, a custom domain on the apex).
+
+Things that bite on a first deploy:
+
+- R2 has to be switched on once in the dashboard (R2 Object Storage, then
+  Purchase R2 Plan; free at this size) before the bucket can be created.
+- New accounts must run containers under the `durable_object` scheduling
+  policy: the config lists named `images` instead of `image`/`max_instances`,
+  and `AnalyzerContainer` names the image and instance size on every start.
+- `wrangler secret put` reads stdin when it has no terminal, so from a
+  non-interactive shell pipe the value in (`pbpaste | wrangler secret put
+  GITHUB_TOKEN`), or it stores an empty secret and says "Success".
 
 ## Cost guardrails
 
