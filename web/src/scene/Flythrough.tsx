@@ -7,6 +7,8 @@ import { cityBounds, height } from '../city/scales'
 import { linesAt } from '../city/timeline'
 import type { City } from '../city/types'
 import { timelineFor } from './Scene'
+import { startRecording, type Recording } from './recorder'
+import { fileStem, saveBlob } from './credit'
 
 interface Shot {
   at: number // seconds from the start
@@ -14,15 +16,17 @@ interface Shot {
 }
 
 /**
- * The cinematic flythrough: a fixed sequence of shots over the city's
- * findings, ending with the whole history replayed from a wide angle.
- * Driven by elapsed time in the render loop so Escape stops it cleanly.
+ * The film: a fixed sequence of shots over the city's findings, ending with
+ * the whole history replayed from a wide angle, recorded to an MP4 that is
+ * saved when the last shot ends. Escape stops it and throws the take away.
+ * Driven by elapsed time in the render loop, from the moment recording starts.
  */
 export function Flythrough({ city, controls }: { city: City; controls: RefObject<CameraControlsImpl | null> }) {
   const filming = useStore((s) => s.filming)
   const start = useRef<number | null>(null)
   const next = useRef(0)
   const shots = useRef<Shot[]>([])
+  const ready = useRef(false)
 
   useEffect(() => {
     const c = controls.current
@@ -45,6 +49,17 @@ export function Flythrough({ city, controls }: { city: City; controls: RefObject
       const dist = Math.max(16, h * 2.4, Math.max(f.w, f.d) * 6) * mult
       void c.setLookAt(tx + dist * 0.75, h * 0.6 + dist * 0.5, tz + dist * 0.9, tx, h * 0.45, tz, true)
     }
+    // Roll the camera only once the recorder is rolling, so the take starts
+    // on the first shot. If this browser cannot record, the film still plays.
+    let alive = true
+    let finished = false
+    let rec: Recording | null = null
+    ready.current = false
+    startRecording(city)
+      .then((r) => (alive ? (rec = r) : r.cancel()))
+      .catch((e) => console.warn('film: not recording', e))
+      .finally(() => (ready.current = true))
+
     const prevSmooth = c.smoothTime
     c.smoothTime = 1.6
     s.select(null)
@@ -92,6 +107,7 @@ export function Flythrough({ city, controls }: { city: City; controls: RefObject
           s.goLive()
           s.setMode('churn')
           s.setSpeed(12)
+          finished = true
           s.setFilming(false)
         },
       },
@@ -99,6 +115,15 @@ export function Flythrough({ city, controls }: { city: City; controls: RefObject
     start.current = null
     next.current = 0
     return () => {
+      alive = false
+      const take = rec
+      if (take && finished) {
+        void take.stop().then((blob) => {
+          const name = `${fileStem(city)}-film.${take.ext}`
+          saveBlob(blob, name)
+          useStore.getState().setSaved({ url: URL.createObjectURL(blob), name, kind: 'video' })
+        })
+      } else take?.cancel()
       c.smoothTime = prevSmooth
       const st = useStore.getState()
       if (st.playing) st.setPlaying(false)
@@ -111,7 +136,10 @@ export function Flythrough({ city, controls }: { city: City; controls: RefObject
     if (!filming) return
     const c = controls.current
     if (!c) return
-    if (start.current == null) start.current = clock.elapsedTime
+    if (start.current == null) {
+      if (!ready.current) return
+      start.current = clock.elapsedTime
+    }
     const elapsed = clock.elapsedTime - start.current
     const list = shots.current
     while (next.current < list.length && elapsed >= list[next.current]!.at) list[next.current++]!.run()

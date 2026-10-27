@@ -5,6 +5,12 @@ import type { ColorMode } from './city/colors'
 import type { HeightScale } from './city/scales'
 import type { ThemeId } from './scene/themes'
 
+export interface Saved {
+  url: string
+  name: string
+  kind: 'image' | 'video'
+}
+
 interface State {
   city: City | null
   status: 'idle' | 'loading' | 'ready' | 'error'
@@ -55,9 +61,12 @@ interface State {
   /** The cinematic flythrough is running; the HUD steps aside. */
   filming: boolean
   setFilming: (v: boolean) => void
-  /** Bumped to ask the scene for a postcard (PNG of the canvas, no HUD). */
+  /** Bumped to ask the scene for a postcard (JPEG of the canvas, no HUD). */
   snapshot: number
   requestSnapshot: () => void
+  /** The postcard or video just saved, for the HUD to show. */
+  saved: Saved | null
+  setSaved: (p: Saved | null) => void
 
   setCity: (c: City) => void
   setLoading: () => void
@@ -121,6 +130,12 @@ export const useStore = create<State>()(
   setFilming: (filming) => set({ filming }),
   snapshot: 0,
   requestSnapshot: () => set((s) => ({ snapshot: s.snapshot + 1 })),
+  saved: null,
+  setSaved: (saved) =>
+    set((s) => {
+      if (s.saved && s.saved.url !== saved?.url) URL.revokeObjectURL(s.saved.url)
+      return { saved }
+    }),
   setCity: (city) => {
     const last = Math.max(0, city.timeline.keyframes.length - 1)
     set({

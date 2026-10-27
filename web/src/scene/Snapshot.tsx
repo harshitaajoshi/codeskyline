@@ -2,23 +2,28 @@ import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import { useStore } from '../store'
 import type { City } from '../city/types'
+import { drawCredit, fileStem, loadCreditFonts, saveBlob } from './credit'
+import { activeTap } from './recorder'
 
 /**
- * Postcard: when the store asks, render two frames at 2x and save the canvas
- * as a PNG with a small caption. The HUD is DOM, so the picture is only the
- * city. Runs after the composer (render priority 2) so the frame is complete.
+ * Postcard: when the store asks, render a few frames at 2x and save the
+ * canvas as a JPEG with the credit along the bottom. The HUD is DOM, so the
+ * picture is only the city. Runs after the composer (render priority 2) so
+ * the frame is complete. The HUD flashes on the click and shows the result.
  */
 export function Snapshot({ city }: { city: City }) {
   const gl = useThree((s) => s.gl)
   const setDpr = useThree((s) => s.setDpr)
   const viewport = useThree((s) => s.viewport)
   const want = useStore((s) => s.snapshot)
+  const setSaved = useStore((s) => s.setSaved)
   const pending = useRef<{ frames: number; restore: number } | null>(null)
   const seen = useRef(want)
 
   useEffect(() => {
     if (want === seen.current) return
     seen.current = want
+    void loadCreditFonts()
     pending.current = { frames: 3, restore: viewport.dpr }
     setDpr(Math.max(2, viewport.dpr))
   }, [want, setDpr, viewport.dpr])
@@ -34,26 +39,27 @@ export function Snapshot({ city }: { city: City }) {
     out.height = src.height
     const ctx = out.getContext('2d')!
     ctx.drawImage(src, 0, 0)
-    // Caption, bottom left, in the site's type.
-    const s = out.width / 1440
-    ctx.fillStyle = 'rgba(241, 239, 232, 0.9)'
-    ctx.font = `${Math.round(16 * s)}px "JetBrains Mono", ui-monospace, monospace`
-    ctx.textBaseline = 'bottom'
-    ctx.fillText(city.repo.name, Math.round(32 * s), out.height - Math.round(32 * s))
-    ctx.fillStyle = 'rgba(231, 99, 59, 0.95)'
-    ctx.font = `800 ${Math.round(16 * s)}px Archivo, system-ui, sans-serif`
-    const w = ctx.measureText(city.repo.name + '  ').width
-    ctx.fillText('codeskyline', Math.round(32 * s) + w, out.height - Math.round(32 * s))
-    out.toBlob((blob) => {
-      setDpr(p.restore)
-      if (!blob) return
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(blob)
-      a.download = `${city.repo.name.replace('/', '__')}-postcard.png`
-      a.click()
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
-    }, 'image/png')
+    setDpr(p.restore)
+    drawCredit(ctx, out.width, out.height, city)
+    // JPEG: a fraction of PNG's encode time and size, and it posts anywhere.
+    out.toBlob(
+      (blob) => {
+        if (!blob) return
+        const name = `${fileStem(city)}-postcard.jpg`
+        saveBlob(blob, name)
+        setSaved({ url: URL.createObjectURL(blob), name, kind: 'image' })
+      },
+      'image/jpeg',
+      0.92,
+    )
   }, 2)
 
+  return null
+}
+
+/** While a video is recording, hand it every finished frame. */
+export function RecordTap() {
+  const gl = useThree((s) => s.gl)
+  useFrame(() => activeTap?.(gl.domElement), 3)
   return null
 }

@@ -78,6 +78,56 @@ export function Hud({ city, onOpenFile, onHome, onOpen }: { city: City; onOpenFi
       <Search city={city} />
       <Timeline city={city} />
       <Tour city={city} />
+      <Shutter />
+      <SavedCard />
+    </div>
+  )
+}
+
+/** A camera flash the instant a postcard is asked for, so the click lands. */
+function Shutter() {
+  const snapshot = useStore((s) => s.snapshot)
+  const [mounted] = useState(snapshot)
+  if (snapshot === mounted) return null
+  return <div key={snapshot} className="shutter pointer-events-none absolute inset-0 z-40 bg-[#f1efe8]" />
+}
+
+/** What was just saved: a thumbnail, its name, and a way to open it again. */
+function SavedCard() {
+  const saved = useStore((s) => s.saved)
+  const setSaved = useStore((s) => s.setSaved)
+  const [hover, setHover] = useState(false)
+  useEffect(() => {
+    if (!saved || hover) return
+    const t = setTimeout(() => setSaved(null), 7000)
+    return () => clearTimeout(t)
+  }, [saved, hover, setSaved])
+  if (!saved) return null
+  const what = saved.kind === 'image' ? 'postcard saved' : 'video saved'
+  return (
+    <div
+      key={saved.url}
+      className="region rise pointer-events-auto absolute top-24 left-1/2 z-30 w-[19rem] -translate-x-1/2 px-4 pt-3 pb-4"
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+    >
+      <div className="flex items-center justify-between">
+        <span className="label text-amber">{what}</span>
+        <button className="text-ivory/40 hover:text-ivory font-mono text-[11px]" onClick={() => setSaved(null)} aria-label="close">
+          ✕
+        </button>
+      </div>
+      {saved.kind === 'image' ? (
+        <img src={saved.url} alt="" className="mt-3 w-full" />
+      ) : (
+        <video src={saved.url} className="mt-3 w-full" autoPlay muted loop playsInline />
+      )}
+      <div className="mt-3 flex items-center justify-between gap-3 font-mono text-[10.5px]">
+        <span className="text-ivory/50 truncate">{saved.name}</span>
+        <a className="lnk text-ivory/70 hover:text-ivory shrink-0 tracking-[0.14em] uppercase" href={saved.url} download={saved.name}>
+          save again
+        </a>
+      </div>
     </div>
   )
 }
@@ -103,10 +153,10 @@ function TopLine({ city, onOpenFile, onHome, onOpen }: { city: City; onOpenFile:
           walk
         </button>
         <ShareLink city={city} />
-        <button className="lnk text-ivory/60 hover:text-ivory" onClick={requestSnapshot} title="save a 2x picture of the city">
+        <button className="lnk text-ivory/60 hover:text-ivory" onClick={requestSnapshot} title="save a picture of this view">
           postcard
         </button>
-        <button className="lnk text-ivory/60 hover:text-ivory" onClick={() => setFilming(true)} title="a forty second flythrough; esc stops it">
+        <button className="lnk text-ivory/60 hover:text-ivory" onClick={() => setFilming(true)} title="record a forty second flythrough as an MP4; esc cancels">
           film
         </button>
         <button className="lnk text-ivory/60 hover:text-ivory" onClick={onOpenFile}>
@@ -635,16 +685,25 @@ function CoupledWith({ city, id }: { city: City; id: number }) {
   )
 }
 
-/** While filming: just the name of the city and how to stop. */
+/** While filming: the city, a recording light with the running time, and how to stop. */
 function FilmHud({ city }: { city: City }) {
   const setFilming = useStore((s) => s.setFilming)
+  const [secs, setSecs] = useState(0)
+  useEffect(() => {
+    const t0 = Date.now()
+    const id = setInterval(() => setSecs(Math.floor((Date.now() - t0) / 1000)), 250)
+    return () => clearInterval(id)
+  }, [])
   return (
     <div className="text-ivory pointer-events-none absolute inset-0">
-      <div className="rise absolute bottom-8 left-8 font-mono text-[11px] tracking-[0.18em] uppercase">
+      <div className="rise absolute bottom-8 left-8 flex items-center font-mono text-[11px] tracking-[0.18em] uppercase">
         <span className="text-ivory/85">{city.repo.name}</span>
-        <span className="text-ivory/35 ml-4">filming</span>
+        <span className="bg-fire caret ml-4 inline-block h-2 w-2 rounded-full" />
+        <span className="text-ivory/55 ml-2 tabular-nums">
+          recording {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')} / 0:38
+        </span>
         <button className="lnk text-ivory/45 hover:text-ivory pointer-events-auto ml-4" onClick={() => setFilming(false)}>
-          esc to stop
+          esc to cancel
         </button>
       </div>
     </div>

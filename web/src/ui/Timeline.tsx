@@ -3,28 +3,22 @@ import { useStore } from '../store'
 import { timeAt } from '../city/timeline'
 import type { City } from '../city/types'
 import { Glyph } from './glyphs'
+import { startRecording } from '../scene/recorder'
+import { fileStem, saveBlob } from '../scene/credit'
 
 const SPEEDS = [4, 12, 30, 60]
 
 /**
- * Records the WebGL canvas while the timeline plays from the beginning,
- * entirely in the browser, and downloads a .webm. The HUD is DOM, not
- * canvas, so the video is just the city.
+ * Replays the whole history from the beginning while recording it, then
+ * saves an MP4 with the credit along the bottom (scene/recorder.ts). The HUD
+ * is DOM, not canvas, so the video is just the city.
  */
 async function recordTimelapse(city: City, onProgress: (p: number) => void): Promise<void> {
-  const canvas = document.querySelector('canvas')
-  if (!canvas || typeof MediaRecorder === 'undefined') throw new Error('recording is not supported in this browser')
-  const stream = canvas.captureStream(60)
-  const mime = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'].find((m) => MediaRecorder.isTypeSupported(m))
-  if (!mime) throw new Error('no supported video codec')
-  const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
-  const chunks: Blob[] = []
-  rec.ondataavailable = (e) => e.data.size > 0 && chunks.push(e.data)
-  const done = new Promise<void>((resolve) => (rec.onstop = () => resolve()))
   const s = useStore.getState()
   const last = Math.max(1, city.timeline.keyframes.length - 1)
+  s.setPlaying(false)
   s.setT(0)
-  rec.start(250)
+  const rec = await startRecording(city)
   s.setPlaying(true)
   await new Promise<void>((resolve) => {
     const unsub = useStore.subscribe((st) => {
@@ -35,15 +29,12 @@ async function recordTimelapse(city: City, onProgress: (p: number) => void): Pro
       }
     })
   })
-  await new Promise((r) => setTimeout(r, 1200))
-  rec.stop()
-  await done
-  const blob = new Blob(chunks, { type: mime })
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `${city.repo.name.replace('/', '__')}-timelapse.${mime.includes('mp4') ? 'mp4' : 'webm'}`
-  a.click()
-  setTimeout(() => URL.revokeObjectURL(a.href), 10_000)
+  // Hold on the finished city for a beat.
+  await new Promise((r) => setTimeout(r, 1500))
+  const blob = await rec.stop()
+  const name = `${fileStem(city)}-timelapse.${rec.ext}`
+  saveBlob(blob, name)
+  useStore.getState().setSaved({ url: URL.createObjectURL(blob), name, kind: 'video' })
 }
 
 /**
@@ -134,8 +125,8 @@ export function Timeline({ city }: { city: City }) {
             <button onClick={goLive} className={`lnk ${live ? 'text-amber' : 'text-ivory/55 hover:text-ivory'}`} data-active={live}>
               {live ? 'now' : 'to now'}
             </button>
-            <button onClick={() => void exportVideo()} disabled={recording != null} className="lnk text-ivory/55 hover:text-ivory">
-              {recording == null ? 'export' : `${Math.round(recording * 100)}%`}
+            <button onClick={() => void exportVideo()} disabled={recording != null} className={`lnk ${recording == null ? 'text-ivory/55 hover:text-ivory' : 'text-amber'}`} title="record the whole history as an MP4">
+              {recording == null ? 'export' : `recording ${Math.round(recording * 100)}%`}
             </button>
           </div>
         </div>

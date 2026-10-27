@@ -23,7 +23,7 @@ import { Labels } from './Labels'
 import { Lots } from './Lots'
 import { Marker } from './Marker'
 import { Sky, makeSkyMaterial } from './Sky'
-import { Snapshot } from './Snapshot'
+import { RecordTap, Snapshot } from './Snapshot'
 import { Streets } from './Streets'
 import { Traffic } from './Traffic'
 import { Walk } from './Walk'
@@ -133,6 +133,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
       {hero ? <HeroCamera city={city} /> : <Camera city={city} />}
       {!hero && <Playback />}
       {!hero && <Snapshot city={city} />}
+      {!hero && <RecordTap />}
       {!hero && <Walk city={city} timeline={timeline} />}
 
       {off('composer') ? null : (
