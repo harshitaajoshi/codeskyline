@@ -74,6 +74,9 @@ export function App() {
             return setError('building')
           }
           const a = await requestAnalysis(`https://github.com/${route.owner}/${route.name}`)
+          // GitHub answers with the repository's current name (facebook/react
+          // is react/react now): the city lives there, so show that address.
+          if (a.owner !== route.owner || a.name !== route.name) history.replaceState(null, '', cityPath(a.owner, a.name) + location.search)
           if (a.status === 'ready') return setRoute(parseRoute())
           setPending({ owner: route.owner, name: route.name, job: { key: a.key, status: a.status, stage: a.stage ?? 'queued', detail: a.detail ?? '', log: a.log ?? [] }, sizeKB: a.sizeKB, exists: true })
           setError('building')

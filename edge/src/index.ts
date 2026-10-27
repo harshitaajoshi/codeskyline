@@ -80,7 +80,7 @@ app.get('/api/jobs/:key{.+}', async (c) => {
 
 app.get('/api/city/:owner/:name', async (c) => {
   const { owner, name } = c.req.param()
-  const row = await c.env.DB.prepare('SELECT sha FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
+  const row = await c.env.DB.prepare('SELECT sha FROM analyses WHERE owner = ? COLLATE NOCASE AND name = ? COLLATE NOCASE ORDER BY analyzed_at DESC LIMIT 1')
     .bind(owner, name)
     .first<{ sha: string }>()
   if (!row) return c.json({ error: 'not analyzed yet' }, 404)
@@ -92,7 +92,7 @@ app.get('/api/city/:owner/:name/:sha', async (c) => {
   const { owner, name, sha } = c.req.param()
   // Newest analysis of this commit first, so a rebuilt city wins over an
   // older format while older ones stay reachable.
-  const row = await c.env.DB.prepare('SELECT r2_key FROM analyses WHERE owner = ? AND name = ? AND sha = ? ORDER BY analyzed_at DESC LIMIT 1')
+  const row = await c.env.DB.prepare('SELECT r2_key FROM analyses WHERE owner = ? COLLATE NOCASE AND name = ? COLLATE NOCASE AND sha = ? ORDER BY analyzed_at DESC LIMIT 1')
     .bind(owner, name, sha)
     .first<{ r2_key: string }>()
   const obj = await c.env.CITIES.get(row?.r2_key ?? r2Key(owner, name, sha))
@@ -118,7 +118,7 @@ app.get('/api/city/:owner/:name/:sha', async (c) => {
 app.get('/api/repo/:owner/:name', async (c) => {
   const { owner, name } = c.req.param()
   const row = await c.env.DB.prepare(
-    'SELECT key, sha, analyzed_at, files, lines, commits, authors, burning, summary FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1',
+    'SELECT key, sha, analyzed_at, files, lines, commits, authors, burning, summary FROM analyses WHERE owner = ? COLLATE NOCASE AND name = ? COLLATE NOCASE ORDER BY analyzed_at DESC LIMIT 1',
   )
     .bind(owner, name)
     .first<{ key: string; sha: string; analyzed_at: number; files: number; lines: number; commits: number; authors: number; burning: number; summary: string }>()
@@ -154,7 +154,7 @@ app.get('/api/repo/:owner/:name', async (c) => {
  * what a stranger pasted is theirs, not a public feed.
  */
 const FEATURED: [string, string][] = [
-  ['facebook', 'react'],
+  ['react', 'react'],
   ['expressjs', 'express'],
   ['vuejs', 'core'],
   ['fastify', 'fastify'],
@@ -185,7 +185,7 @@ app.get('/og/:owner/:file', async (c) => {
   const { owner, file } = c.req.param()
   if (!file.endsWith('.png')) return c.notFound()
   const name = file.slice(0, -4)
-  const row = await c.env.DB.prepare('SELECT summary FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
+  const row = await c.env.DB.prepare('SELECT summary FROM analyses WHERE owner = ? COLLATE NOCASE AND name = ? COLLATE NOCASE ORDER BY analyzed_at DESC LIMIT 1')
     .bind(owner, name)
     .first<{ summary: string }>()
   const summary = row ? (JSON.parse(row.summary) as Summary) : emptySummary(`${owner}/${name}`)
@@ -198,7 +198,7 @@ app.get('/og/:owner/:file', async (c) => {
 async function cityPage(c: Context<{ Bindings: Env }>, owner: string, name: string) {
   const shell = await c.env.ASSETS.fetch(new Request(new URL('/', c.req.url)))
   const html = await shell.text()
-  const row = await c.env.DB.prepare('SELECT files, lines, commits, burning FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
+  const row = await c.env.DB.prepare('SELECT files, lines, commits, burning FROM analyses WHERE owner = ? COLLATE NOCASE AND name = ? COLLATE NOCASE ORDER BY analyzed_at DESC LIMIT 1')
     .bind(owner, name)
     .first<{ files: number; lines: number; commits: number; burning: number }>()
   const title = `${owner}/${name} as a city`
@@ -253,7 +253,7 @@ app.get('/badge/:owner/:file', async (c) => {
   const { owner, file } = c.req.param()
   if (!file.endsWith('.svg')) return c.notFound()
   const name = file.slice(0, -4)
-  const row = await c.env.DB.prepare('SELECT summary, analyzed_at FROM analyses WHERE owner = ? AND name = ? ORDER BY analyzed_at DESC LIMIT 1')
+  const row = await c.env.DB.prepare('SELECT summary, analyzed_at FROM analyses WHERE owner = ? COLLATE NOCASE AND name = ? COLLATE NOCASE ORDER BY analyzed_at DESC LIMIT 1')
     .bind(owner, name)
     .first<{ summary: string; analyzed_at: number }>()
   const theme = c.req.query('theme') === 'light' ? 'light' : 'dark'

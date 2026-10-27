@@ -25,7 +25,7 @@ const STAGE_COPY: Record<string, string> = {
 }
 
 const TRY = [
-  { label: 'facebook/react', url: 'https://github.com/facebook/react' },
+  { label: 'react/react', url: 'https://github.com/react/react' },
   { label: 'vuejs/core', url: 'https://github.com/vuejs/core' },
   { label: 'fastify/fastify', url: 'https://github.com/fastify/fastify' },
 ]
