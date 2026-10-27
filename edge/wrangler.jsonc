@@ -22,7 +22,7 @@
   "vars": {
     "MAX_REPO_KB": "2000000",
     "MAX_COMMITS": "100000",
-    "MAX_JOBS_PER_MONTH": "300",
+    "MAX_JOBS_PER_MONTH": "2000",
     "PUBLIC_ORIGIN": "https://codeskyline.dev"
   },
 
@@ -54,7 +54,7 @@
       {
         "queue": "codeskyline-analysis",
         "max_batch_size": 1,
-        "max_concurrency": 2,
+        "max_concurrency": 4,
         "max_retries": 1,
         "dead_letter_queue": "codeskyline-dlq"
       }

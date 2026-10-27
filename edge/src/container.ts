@@ -45,4 +45,4 @@ interface ContainerWithImages {
   start(opts: object): void
 }
 
-export const ANALYZER_SHARDS = 2
+export const ANALYZER_SHARDS = 4
