@@ -355,6 +355,11 @@ function Camera({ city }: { city: City }) {
     }, 200)
   }, [flyTo, city, heightScale, consume, cx, cz, size])
 
+  // Dev only: scripts (the README GIF) drive the camera through this.
+  useEffect(() => {
+    if (import.meta.env.DEV) (window as unknown as { __cskyCamera?: unknown }).__cskyCamera = ref.current
+  })
+
   // While walking, the controls must not exist at all: even disabled, they
   // write the camera transform every frame and would fight the walk.
   if (walking) return null

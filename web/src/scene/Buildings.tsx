@@ -198,6 +198,22 @@ export function Buildings({
   }, [uniforms])
   useEffect(() => () => material.dispose(), [material])
 
+  // Shadows run the same height and variant code, or the shadow map would
+  // draw every building at the height in its matrix: scrubbing back in time
+  // left long shadows of buildings that do not exist yet.
+  const depthMaterial = useMemo(() => {
+    const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking })
+    m.customProgramCacheKey = () => 'csky-buildings-depth'
+    m.onBeforeCompile = (shader) => {
+      Object.assign(shader.uniforms, uniforms)
+      // The colour half of VERT_SAMPLE has no vColor to write here.
+      const sample = VERT_SAMPLE.replace('#if defined( USE_INSTANCING_COLOR )', '#if 0')
+      shader.vertexShader = VERT_PARS + shader.vertexShader.replace('#include <begin_vertex>', sample + VERT_BEGIN + VERT_VARIANT)
+    }
+    return m
+  }, [uniforms])
+  useEffect(() => () => depthMaterial.dispose(), [depthMaterial])
+
   const theme = useStore((s) => s.theme)
   useEffect(() => {
     uniforms.uMode.value = GPU_MODE[mode]
@@ -347,6 +363,7 @@ export function Buildings({
       <instancedMesh
         ref={mesh}
         args={[BOX, material, Math.max(1, city.files.length)]}
+        customDepthMaterial={depthMaterial}
         castShadow
         receiveShadow
         frustumCulled={false}

@@ -1,34 +1,59 @@
 # CodeSkyline
 
-Any GitHub repository, rendered as a 3D city from its git history. Folders are
-districts, files are buildings, height is lines of code, and the hotspots most
-likely to need bug fixes are on fire.
+**Every repository is a city.** CodeSkyline turns a GitHub repository's git
+history into a 3D city you can fly through. Folders are districts, files are
+buildings, height is lines of code, and the files most likely to break next
+are on fire.
 
 **[codeskyline.dev](https://codeskyline.dev)** · [Benchmarks](docs/benchmarks.md) · [Architecture](docs/architecture.md)
 
-![react/react as a city, colored by owner](docs/images/react-owners.png)
+![react/react growing from 2013 to today, its hotspots catching fire](docs/images/timelapse.webp)
+
+<sub>react/react, from the first commit to today: 15k commits, 1,443 authors, 135 buildings on fire.</sub>
+
+## Why
+
+A codebase's history knows things its code doesn't: which files keep
+breaking, who still holds the knowledge, what quietly changes together. That
+usually lives in a dashboard nobody opens. CodeSkyline makes it something you
+take in at a glance and can walk around in.
 
 ## Usage
 
 Open [codeskyline.dev](https://codeskyline.dev) and paste a public repository,
-or replace `github.com` with `codeskyline.dev` in any repository URL. Cities
-are built on first visit, usually in under a minute, and cached per commit.
+or swap the host in any repository URL:
 
-## Features
+```
+github.com/vuejs/core  →  codeskyline.dev/vuejs/core
+```
 
-- **Hotspots.** Recent churn × complexity. On twelve repositories the top
-  twenty hotspots contained 70% of the files fixed for bugs in the following
-  year, against a 21% base rate ([method](docs/benchmarks.md)).
-- **Time travel.** Replay the full history on the GPU and watch the city grow,
-  burn and get demolished. Exportable as video.
-- **Hidden coupling.** Files that change together without importing each other,
-  mined from co-change in the log.
-- **Ownership.** Bus factor per district, ghost towns, and what would be left
-  unowned if a given person left.
-- **Lenses.** Churn, activity, hotspots, owners, language, age, and diff.
-- **Sharing.** Every view is a URL with a link preview, plus a README badge.
+Cities are built on the first visit, usually in under a minute, and cached
+per commit.
+
+## What you'll see
+
+- **Fire where the bugs are.** Hotspots are recent churn × complexity. On
+  twelve repositories, the top twenty contained 70% of the files fixed for
+  bugs in the following year, against a 21% base rate
+  ([method](docs/benchmarks.md)).
+- **The whole history in seconds.** Press play and the city builds itself
+  commit by commit on the GPU: towers rise, catch fire and get demolished.
+  Export it as a video.
+- **Hidden coupling.** Files that keep changing together without importing
+  each other, bridged across the city.
+- **The bus factor, made visible.** Pick a person and every building only
+  they still understand goes dark.
+- **Six lenses.** Churn, activity, hotspots, owners, language and age, plus a
+  diff lens for comparing two commits.
+- **Walk the streets.** Drop to street level, or press ⌘K to fly to any file.
+- **Share any view.** Every view is a link that unfurls with a picture of the
+  skyline.
+
+![react/react colored by owner: if @josephsavona left, 2,914 files would have no active owner](docs/images/react-owners.png)
 
 ## README badge
+
+A silhouette of your repository's own skyline, with its hotspots in orange.
 
 ```md
 [![CodeSkyline](https://codeskyline.dev/badge/OWNER/REPO.svg)](https://codeskyline.dev/OWNER/REPO)
@@ -40,9 +65,9 @@ Options: `?theme=light`, `?bare=1`, `?label=<text>`.
 
 ## GitHub Action
 
-Posts a risk report on each pull request: hotspots touched, files that usually
+A risk report on every pull request: hotspots touched, files that usually
 change alongside the ones changed, single-owner districts and suggested
-reviewers. Runs entirely in your CI.
+reviewers. Runs entirely in your CI; nothing leaves the runner.
 
 ```yaml
 - uses: actions/checkout@v4
@@ -58,9 +83,9 @@ A Go analyzer reads the repository with `git log --numstat` and `git cat-file`.
 It never checks out a working tree, so an untrusted repository cannot run code
 during analysis. It follows renames, classifies generated and vendored files,
 and writes a compact city document. The viewer (React Three Fiber) lays the
-city out and animates history in a vertex shader. The hosted service is a
-Cloudflare Worker with the analyzer in a scale-to-zero container and cities
-stored in R2.
+city out and replays its history in a vertex shader, smoothly at 50,000
+buildings. The hosted service is a Cloudflare Worker with the analyzer in a
+scale-to-zero container and cities stored in R2, for about $5 a month.
 
 ## Development
 
