@@ -221,7 +221,12 @@ async function cityPage(c: Context<{ Bindings: Env }>, owner: string, name: stri
     `<meta name="twitter:description" content="${esc(desc)}">`,
     `<meta name="twitter:image" content="${origin}/og/${owner}/${name}.png">`,
   ].join('\n    ')
-  const out = html.replace(/<title>[^<]*<\/title>/, '').replace(/<meta name="description"[^>]*>/, '').replace('</head>', `    ${tags}\n  </head>`)
+  // The shell carries the front page's preview; a city brings its own.
+  const out = html
+    .replace(/<title>[^<]*<\/title>/, '')
+    .replace(/<meta name="description"[^>]*>/, '')
+    .replace(/\s*<meta (?:property="og:|name="twitter:)[^>]*>/g, '')
+    .replace('</head>', `    ${tags}\n  </head>`)
   return new Response(out, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=300' } })
 }
 
