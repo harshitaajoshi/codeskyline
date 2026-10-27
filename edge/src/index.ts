@@ -159,7 +159,7 @@ const FEATURED: [string, string][] = [
   ['vuejs', 'core'],
   ['fastify', 'fastify'],
   ['vitejs', 'vite'],
-  ['hono-dev', 'hono'],
+  ['honojs', 'hono'],
   ['denoland', 'deno'],
   ['golang', 'go'],
 ]

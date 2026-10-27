@@ -6,6 +6,10 @@
   "compatibility_flags": ["nodejs_compat"],
   "observability": { "enabled": true },
 
+  // Served at the apex: codeskyline.dev/owner/repo. Cloudflare issues the
+  // certificate and DNS record on deploy.
+  "routes": [{ "pattern": "codeskyline.dev", "custom_domain": true }],
+
   // The viewer. Built assets never touch the Worker (and are free); page
   // paths run it first so /owner/repo gets its link preview.
   "assets": {
@@ -19,7 +23,7 @@
     "MAX_REPO_KB": "2000000",
     "MAX_COMMITS": "100000",
     "MAX_JOBS_PER_MONTH": "300",
-    "PUBLIC_ORIGIN": "https://codeskyline.harshitaajoshi.workers.dev"
+    "PUBLIC_ORIGIN": "https://codeskyline.dev"
   },
 
   "durable_objects": {
@@ -30,13 +34,17 @@
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["JobDO", "AnalyzerContainer"] }],
 
+  // The analyzer. Under the "durable_object" scheduling policy each Durable
+  // Object picks the image and instance size when it starts its container
+  // (AnalyzerContainer in src/container.ts); concurrency is capped by
+  // ANALYZER_SHARDS, since there is no max_instances here.
   "containers": [
     {
       "class_name": "AnalyzerContainer",
-      "image": "../analyzer/Dockerfile",
-      "image_build_context": "../analyzer",
-      "max_instances": 2,
-      "instance_type": "standard-2"
+      "scheduling_policy": "durable_object",
+      "images": {
+        "analyzer": { "dockerfile": "../analyzer/Dockerfile", "build_context": "../analyzer" }
+      }
     }
   ],
 
@@ -57,8 +65,7 @@
     {
       "binding": "DB",
       "database_name": "codeskyline",
-      // Replace with the id printed by `wrangler d1 create codeskyline`.
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "cfb0f54b-17f7-4ab5-abae-78d68fb68004",
       "migrations_dir": "migrations"
     }
   ],
