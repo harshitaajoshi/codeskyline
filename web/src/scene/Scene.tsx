@@ -73,7 +73,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
   return (
     <Canvas
       shadows
-      dpr={[1, hero ? 1.5 : 2]}
+      dpr={[1, hero || n > 30000 ? 1.5 : 2]}
       gl={{ antialias: true, powerPreference: 'high-performance' }}
       camera={{ fov: 42, near: 0.3, far: size * 12, position: [cx + size * 0.7, size * 0.6, cz + size * 0.9] }}
       onPointerMissed={() => !hero && useStore.getState().select(null)}
@@ -110,6 +110,7 @@ export function Scene({ city, hero = false }: { city: City; hero?: boolean }) {
         <meshStandardMaterial color={T.ground} roughness={1} />
       </mesh>
       <DepthTuning size={size} />
+      {!traffic && <ShadowCache />}
       {new URLSearchParams(location.search).get('debug') === '1' && <Diagnostics />}
 
       {!off('districts') && <Districts city={city} />}
@@ -280,6 +281,34 @@ function WetStreets({ city }: { city: City }) {
  * z-fight and shimmer; pushing near out with city size fixes it. Walk mode
  * needs it tight again so nearby walls do not clip.
  */
+/**
+ * Past the traffic limit nothing that casts a shadow moves on its own: the
+ * sun is fixed and buildings change only with time, height scale and the
+ * generated filter. The shadow map, a second render of every building, is
+ * redrawn only when one of those changes instead of every frame.
+ */
+function ShadowCache() {
+  const gl = useThree((s) => s.gl)
+  const last = useRef('')
+  const warm = useRef(0)
+  useEffect(() => {
+    gl.shadowMap.autoUpdate = false
+    gl.shadowMap.needsUpdate = true
+    return () => {
+      gl.shadowMap.autoUpdate = true
+    }
+  }, [gl])
+  useFrame(() => {
+    const s = useStore.getState()
+    const key = `${s.t}|${s.heightScale}|${s.hideGenerated}|${s.day}|${s.theme}`
+    // A second of frames after mount, while instance data and materials settle.
+    if (key !== last.current || warm.current < 60) gl.shadowMap.needsUpdate = true
+    last.current = key
+    warm.current++
+  })
+  return null
+}
+
 function DepthTuning({ size }: { size: number }) {
   const walking = useStore((s) => s.walking)
   const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera

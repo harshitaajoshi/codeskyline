@@ -18,6 +18,10 @@ export interface TimelineData {
   meta: Uint8Array
   /** first keyframe at which each file exists, or -1 */
   born: Int32Array
+  /** per keyframe, the files with an event there (the only ones whose lines can change), ascending */
+  changes: number[][]
+  /** per keyframe, the files on fire there, ascending */
+  burning: number[][]
   /** activity value at the 95th percentile of non-zero activity, for color scaling */
   activityScale: number
 }
@@ -32,6 +36,8 @@ export function buildTimeline(city: City, ownerSlot: (author: number) => number)
   const lines = new Float32Array(texW * texH)
   const meta = new Uint8Array(texW * texH * 4)
   const born = new Int32Array(F).fill(-1)
+  const changes: number[][] = Array.from({ length: K }, () => [])
+  const burning: number[][] = Array.from({ length: K }, () => [])
   const ev = city.timeline.events
 
   // First pass: max cumulative commits for the churn scale, activity samples.
@@ -79,15 +85,22 @@ export function buildTimeline(city: City, ownerSlot: (author: number) => number)
       const next = j + 6 < ev.length && ev[j + 6] === f ? ev[j + 7]! : K
       cum += ev[j + 3]!
       fill(f, k, next, ev[j + 2]!, ev[j + 3]!, ev[j + 4]!, ev[j + 5]!, cum)
+      changes[k]?.push(f)
+      if (ev[j + 5]! > 0) for (let kk = k; kk < next; kk++) burning[kk]?.push(f)
       j += 6
     }
     i = j
   }
-  return { K, F, texW, texH, lines, meta, born, activityScale }
+  return { K, F, texW, texH, lines, meta, born, changes, burning, activityScale }
 }
 
 export function linesAt(t: TimelineData, f: number, k: number): number {
   return t.lines[f * t.K + Math.min(t.K - 1, Math.max(0, k))] ?? 0
+}
+
+/** Files on fire at keyframe k (clamped), ascending. */
+export function burningAt(t: TimelineData, k: number): number[] {
+  return t.burning[Math.min(t.K - 1, Math.max(0, k))] ?? []
 }
 
 export function fireAt(t: TimelineData, f: number, k: number): number {

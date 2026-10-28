@@ -81,8 +81,14 @@ export function Cranes({ city, timeline }: { city: City; timeline: TimelineData 
     const cranes: (Crane & { growth: number })[] = []
     const piles: Rubble[] = []
     if (k <= 0) return { cranes, piles }
-    city.files.forEach((f, fi) => {
-      if (hideGenerated && (f.generated || f.vendored)) return
+    const skip = (fi: number) => {
+      const f = city.files[fi]!
+      return hideGenerated && (f.generated || f.vendored)
+    }
+    // Only files with an event at k can have grown since k - 1.
+    for (const fi of timeline.changes[k] ?? []) {
+      if (skip(fi)) continue
+      const f = city.files[fi]!
       const now = linesAt(timeline, fi, k)
       const before = linesAt(timeline, fi, k - 1)
       const growth = now - before
@@ -91,17 +97,21 @@ export function Cranes({ city, timeline }: { city: City; timeline: TimelineData 
         const depth = city.dirs[f.dir]?.depth ?? 0
         cranes.push({ x: f.x - 0.18, z: f.z - 0.18, y: 0.08 * depth + 0.08, h: h + 1.6, yaw: (fi * 0.618) % (Math.PI * 2), growth })
       }
-      // Demolished within the last few keyframes: a pile that settles.
-      if (now === 0) {
-        for (let j = Math.max(1, k - RUBBLE_KEYFRAMES + 1); j <= k; j++) {
-          if (linesAt(timeline, fi, j) === 0 && linesAt(timeline, fi, j - 1) > 0) {
-            const depth = city.dirs[f.dir]?.depth ?? 0
-            piles.push({ x: f.x + f.w / 2, z: f.z + f.d / 2, y: 0.08 * depth + 0.13, w: f.w, d: f.d, age: k - j, seed: fi })
-            break
-          }
+    }
+    // Demolished within the last few keyframes and still gone: a pile that settles.
+    const seen = new Set<number>()
+    for (let j = Math.max(1, k - RUBBLE_KEYFRAMES + 1); j <= k; j++) {
+      for (const fi of timeline.changes[j] ?? []) {
+        if (seen.has(fi) || skip(fi) || linesAt(timeline, fi, k) !== 0) continue
+        if (linesAt(timeline, fi, j) === 0 && linesAt(timeline, fi, j - 1) > 0) {
+          seen.add(fi)
+          const f = city.files[fi]!
+          const depth = city.dirs[f.dir]?.depth ?? 0
+          piles.push({ x: f.x + f.w / 2, z: f.z + f.d / 2, y: 0.08 * depth + 0.13, w: f.w, d: f.d, age: k - j, seed: fi })
         }
       }
-    })
+    }
+    piles.sort((a, b) => a.seed - b.seed)
     cranes.sort((a, b) => b.growth - a.growth)
     return { cranes: cranes.slice(0, MAX_CRANES), piles: piles.slice(0, MAX_RUBBLE) }
   }, [city, timeline, k, heightScale, hideGenerated])

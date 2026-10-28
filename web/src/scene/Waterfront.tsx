@@ -8,6 +8,9 @@ import { LampPosts, type Placed } from './Streets'
 
 const QUAY = 2.6 // promenade between the last district and the water
 const LAMP_SPACING = 9
+// The mirror renders the whole city a second time every frame; past this many
+// buildings the water reflects only the sky.
+const MIRROR_MAX = 30000
 
 /** Overlapping sine ripples as a tiling normal map, scrolled for motion. */
 function rippleNormals(): THREE.DataTexture {
@@ -82,6 +85,9 @@ export function Waterfront({ city }: { city: City }) {
       {/* Water: a slow, rippled mirror. */}
       <mesh ref={water} rotation-x={-Math.PI / 2} position={[cx, 0.0, waterZ - reach / 2]}>
         <planeGeometry args={[root.w + reach * 2, reach]} />
+        {city.files.length > MIRROR_MAX ? (
+          <meshStandardMaterial color="#0b111c" roughness={0.18} metalness={0.85} normalMap={normals} normalScale={new THREE.Vector2(0.35, 0.35)} />
+        ) : (
         <MeshReflectorMaterial
           blur={[500, 160]}
           resolution={768}
@@ -97,6 +103,7 @@ export function Waterfront({ city }: { city: City }) {
           distortionMap={normals}
           distortion={0.25}
         />
+        )}
       </mesh>
     </group>
   )

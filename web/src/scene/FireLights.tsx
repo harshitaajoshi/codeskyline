@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useStore } from '../store'
 import { height } from '../city/scales'
-import { fireAt, linesAt, type TimelineData } from '../city/timeline'
+import { burningAt, fireAt, linesAt, type TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
 
 const N = 6
@@ -21,7 +21,8 @@ export function FireLights({ city, timeline }: { city: City; timeline: TimelineD
 
   const spots = useMemo(() => {
     const burning: { fi: number; level: number; hot: number }[] = []
-    city.files.forEach((f, fi) => {
+    burningAt(timeline, k).forEach((fi) => {
+      const f = city.files[fi]!
       if (hideGenerated && (f.generated || f.vendored)) return
       const level = fireAt(timeline, fi, k)
       if (level > 0) burning.push({ fi, level, hot: f.hotspot })

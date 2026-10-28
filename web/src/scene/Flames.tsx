@@ -3,7 +3,7 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useStore } from '../store'
 import { height } from '../city/scales'
-import { fireAt, linesAt, type TimelineData } from '../city/timeline'
+import { burningAt, fireAt, linesAt, type TimelineData } from '../city/timeline'
 import type { City } from '../city/types'
 
 const NOISE = /* glsl */ `
@@ -102,7 +102,8 @@ export function Flames({ city, timeline }: { city: City; timeline: TimelineData 
   const { flames, smoke } = useMemo(() => {
     const flames: Particle[] = []
     const smoke: Particle[] = []
-    city.files.forEach((f, fi) => {
+    burningAt(timeline, k).forEach((fi) => {
+      const f = city.files[fi]!
       if (hideGenerated && (f.generated || f.vendored)) return
       const level = fireAt(timeline, fi, k)
       if (level === 0) return

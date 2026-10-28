@@ -55,42 +55,43 @@ function bodyGeometry(): THREE.BufferGeometry {
  *   2 parapet plus plant rooms
  *   3 spire with a warning light (emit = 1)
  *   4 water tank
+ * One geometry per variant, each drawn by its own instanced mesh, so a
+ * building only pays for the rooftop it has.
  */
-function crownGeometry(): THREE.BufferGeometry {
+function crownGeometries(): THREE.BufferGeometry[] {
   const box = (w: number, h: number, d: number, x: number, y: number, z: number) => new THREE.BoxGeometry(w, h, d).translate(x, y + h / 2, z)
   const emit = (g: THREE.BufferGeometry, v: number) => {
     const n = g.getAttribute('position').count
     g.setAttribute('emit', new THREE.Float32BufferAttribute(new Float32Array(n).fill(v), 1))
     return g
   }
-  const rim = (variant: number) => [
-    tagged(box(1, 0.08, 0.07, 0, 0, -0.465), variant),
-    tagged(box(1, 0.08, 0.07, 0, 0, 0.465), variant),
-    tagged(box(0.07, 0.08, 1, -0.465, 0, 0), variant),
-    tagged(box(0.07, 0.08, 1, 0.465, 0, 0), variant),
+  const rim = () => [
+    box(1, 0.08, 0.07, 0, 0, -0.465),
+    box(1, 0.08, 0.07, 0, 0, 0.465),
+    box(0.07, 0.08, 1, -0.465, 0, 0),
+    box(0.07, 0.08, 1, 0.465, 0, 0),
   ]
-  const parts = [
-    ...rim(1),
-    ...rim(2),
-    tagged(box(0.3, 0.16, 0.22, -0.2, 0, 0.15), 2),
-    tagged(box(0.18, 0.1, 0.18, 0.22, 0, -0.18), 2),
-    tagged(box(0.1, 0.22, 0.1, 0.25, 0, 0.25), 2),
-    ...rim(3),
-    tagged(box(0.16, 0.25, 0.16, 0, 0, 0), 3),
-    tagged(box(0.05, 1.3, 0.05, 0, 0.25, 0), 3),
-    emit(tagged(box(0.06, 0.06, 0.06, 0, 1.55, 0), 3), 1),
-    tagged(box(0.05, 0.3, 0.05, 0.14, 0, 0.14), 4),
-    tagged(box(0.05, 0.3, 0.05, -0.14, 0, 0.14), 4),
-    tagged(box(0.05, 0.3, 0.05, 0.14, 0, -0.14), 4),
-    tagged(box(0.05, 0.3, 0.05, -0.14, 0, -0.14), 4),
-    tagged(new THREE.CylinderGeometry(0.17, 0.17, 0.3, 10).translate(0, 0.45, 0), 4),
+  const variants = [
+    [],
+    rim(),
+    [...rim(), box(0.3, 0.16, 0.22, -0.2, 0, 0.15), box(0.18, 0.1, 0.18, 0.22, 0, -0.18), box(0.1, 0.22, 0.1, 0.25, 0, 0.25)],
+    [...rim(), box(0.16, 0.25, 0.16, 0, 0, 0), box(0.05, 1.3, 0.05, 0, 0.25, 0), emit(box(0.06, 0.06, 0.06, 0, 1.55, 0), 1)],
+    [
+      box(0.05, 0.3, 0.05, 0.14, 0, 0.14),
+      box(0.05, 0.3, 0.05, -0.14, 0, 0.14),
+      box(0.05, 0.3, 0.05, 0.14, 0, -0.14),
+      box(0.05, 0.3, 0.05, -0.14, 0, -0.14),
+      new THREE.CylinderGeometry(0.17, 0.17, 0.3, 10).translate(0, 0.45, 0),
+    ],
   ]
-  for (const g of parts) if (!g.getAttribute('emit')) emit(g, 0)
-  return mergeGeometries(parts, false)
+  return variants.map((parts) => {
+    for (const g of parts) if (!g.getAttribute('emit')) emit(g, 0)
+    return parts.length ? mergeGeometries(parts, false) : new THREE.BufferGeometry()
+  })
 }
 
 const BOX = bodyGeometry()
-const CROWN = crownGeometry()
+const CROWNS = crownGeometries()
 
 const HOVER: RGB = [1, 1, 1]
 const PARTNER: RGB = [1.0, 0.68, 0.5] // coupled to the selection
@@ -119,7 +120,13 @@ export function Buildings({
   const selected = useStore((s) => s.selected)
   const storeK = useStore((s) => s.k)
   const showCoupling = useStore((s) => s.showCoupling)
-  const k = storeK
+  const playing = useStore((s) => s.playing)
+  // Picking boxes follow the timeline, but rebuilding every matrix each
+  // keyframe stalls playback on big cities; while playing they keep the
+  // heights from the last pause and catch up when it stops.
+  const pickK = useRef(storeK)
+  if (!playing) pickK.current = storeK
+  const k = pickK.current
   const hover = useStore((s) => s.hover)
   const select = useStore((s) => s.select)
 
@@ -371,7 +378,7 @@ export function Buildings({
         onPointerOut={interactive ? () => hover(null) : undefined}
         onClick={interactive ? onClick : undefined}
       />
-      {!/[?&]off=[^&]*crowns/.test(location.search) && <Crowns city={city} visible={visible} uniforms={uniforms} aFile={aFile} aVariant={aVariant.crown} aBody={aVariant.body} />}
+      {!/[?&]off=[^&]*crowns/.test(location.search) && <Crowns city={city} visible={visible} uniforms={uniforms} aVariant={aVariant.crown} aBody={aVariant.body} />}
       {!/[?&]off=[^&]*glow/.test(location.search) && <Glow city={city} timeline={timeline} uniforms={uniforms} />}
     </>
   )
@@ -382,26 +389,23 @@ function fract(x: number) {
 }
 
 /**
- * Rooftop details as a second instanced mesh. The instance matrix carries
- * the footprint; the shader samples the same keyframe textures as the
+ * Rooftop details: one instanced mesh per crown variant. The instance matrix
+ * carries the footprint; the shader samples the same keyframe textures as the
  * bodies and lifts each crown to its building's live height.
  */
 function Crowns({
   city,
   visible,
   uniforms,
-  aFile,
   aVariant,
   aBody,
 }: {
   city: City
   visible: number[]
   uniforms: Record<string, THREE.IUniform>
-  aFile: THREE.InstancedBufferAttribute
   aVariant: THREE.InstancedBufferAttribute
   aBody: THREE.InstancedBufferAttribute
 }) {
-  const mesh = useRef<THREE.InstancedMesh>(null!)
   const material = useMemo(() => {
     const m = new THREE.MeshStandardMaterial({ color: '#2b2b2d', roughness: 0.7, metalness: 0.3 })
     m.customProgramCacheKey = () => 'csky-crowns'
@@ -421,28 +425,69 @@ function Crowns({
   }, [uniforms])
   useEffect(() => () => material.dispose(), [material])
 
+  // Files and body shapes per crown variant.
+  const sets = useMemo(() => {
+    const v = aVariant.array as Float32Array
+    const b = aBody.array as Float32Array
+    const out = CROWNS.map(() => ({ files: [] as number[], bodies: [] as number[] }))
+    visible.forEach((fi, slot) => {
+      const set = out[v[slot]!]
+      if (!set) return
+      set.files.push(fi)
+      set.bodies.push(b[slot]!)
+    })
+    return out
+  }, [visible, aVariant, aBody])
+
+  return (
+    <>
+      {sets.map((set, variant) =>
+        variant === 0 || set.files.length === 0 ? null : (
+          <CrownSet key={variant} city={city} geometry={CROWNS[variant]!} material={material} files={set.files} bodies={set.bodies} />
+        ),
+      )}
+    </>
+  )
+}
+
+function CrownSet({
+  city,
+  geometry,
+  material,
+  files,
+  bodies,
+}: {
+  city: City
+  geometry: THREE.BufferGeometry
+  material: THREE.Material
+  files: number[]
+  bodies: number[]
+}) {
+  const mesh = useRef<THREE.InstancedMesh>(null!)
+  const geo = useMemo(() => geometry.clone(), [geometry])
+  useEffect(() => () => geo.dispose(), [geo])
+
   useEffect(() => {
     const m = mesh.current
     const mat = new THREE.Matrix4()
     const pos = new THREE.Vector3()
     const scl = new THREE.Vector3()
     const q = new THREE.Quaternion()
-    visible.forEach((fi, slot) => {
+    files.forEach((fi, slot) => {
       const f = city.files[fi]!
       pos.set(f.x + f.w / 2, 0, f.z + f.d / 2)
       scl.set(Math.max(0.2, f.w - LOT_MARGIN), 1, Math.max(0.2, f.d - LOT_MARGIN))
       mat.compose(pos, q, scl)
       m.setMatrixAt(slot, mat)
     })
-    m.count = visible.length
+    m.count = files.length
     m.instanceMatrix.needsUpdate = true
-    m.geometry.setAttribute('aFile', aFile)
-    m.geometry.setAttribute('aVariant', aVariant)
-    m.geometry.setAttribute('aBody', aBody)
+    geo.setAttribute('aFile', new THREE.InstancedBufferAttribute(Float32Array.from(files), 1))
+    geo.setAttribute('aBody', new THREE.InstancedBufferAttribute(Float32Array.from(bodies), 1))
     m.computeBoundingSphere()
-  }, [city, visible, aFile, aVariant, aBody])
+  }, [city, files, bodies, geo])
 
-  return <instancedMesh ref={mesh} args={[CROWN, material, Math.max(1, city.files.length)]} frustumCulled={false} raycast={() => null} />
+  return <instancedMesh ref={mesh} args={[geo, material, Math.max(1, files.length)]} frustumCulled={false} raycast={() => null} />
 }
 
 // ---------------------------------------------------------------------------
@@ -575,9 +620,7 @@ if (abs(variant - aVariant) > 0.5) transformed = vec3(0.0);
 
 const CROWN_VERT_PARS = /* glsl */ `
 attribute float aFile;
-attribute float aVariant;
 attribute float aBody;
-attribute float variant;
 attribute float emit;
 uniform sampler2D uLines;
 uniform float uT;
@@ -611,7 +654,7 @@ float csky_h = mix(cskyHeight(cskyLines(csky_f * uK + csky_k0)), cskyHeight(csky
 // Towers and setbacks narrow toward the top; shrink the crown to the top storey.
 float csky_top = aBody < 0.5 ? 1.0 : aBody < 1.5 ? 0.72 : aBody < 2.5 ? 0.66 : 0.5;
 vec3 transformed = vec3(position.x * csky_top, position.y + csky_h, position.z * csky_top);
-if (abs(variant - aVariant) > 0.5 || csky_h <= 0.0 || aVariant < 0.5) transformed = vec3(0.0);
+if (csky_h <= 0.0) transformed = vec3(0.0);
 vCskyEmit = emit * (1.0 + fract(aFile * 0.37));
 `
 
